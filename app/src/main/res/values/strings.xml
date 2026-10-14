@@ -1,0 +1,27 @@
+<resources>
+    <string name="app_name">Kurrent</string>
+    <string name="tagline">Daily Current Affairs for UPSC, SSC &amp; IBPS</string>
+    
+    <!-- Tabs / Navigation -->
+    <string name="tab_digest">Daily Digest</string>
+    <string name="tab_quick_cards">Cards</string>
+    <string name="tab_recalls">Recalls</string>
+    <string name="tab_mcq_quiz">Quiz</string>
+    <string name="tab_saved">Saved</string>
+    
+    <!-- Exam Filter Chips -->
+    <string name="filter_all">All Topics</string>
+    <string name="filter_upsc">UPSC (Civil Services)</string>
+    <string name="filter_ssc">SSC (CGL/CHSL)</string>
+    <string name="filter_ibps">IBPS / Banking</string>
+    
+    <!-- Section Labels -->
+    <string name="label_summary_60">60-Word Overview</string>
+    <string name="label_upsc_prelims">Prelims Pointers</string>
+    <string name="label_upsc_mains">Mains Analysis &amp; Question</string>
+    <string name="label_ssc_facts">Key Exam Facts (SSC &amp; IBPS)</string>
+    <string name="label_quiz_challenge">Daily 5-Min MCQ Test</string>
+    <string name="label_read_more">Deep Dive Analysis</string>
+    <string name="label_bookmark">Save for Revision</string>
+    <string name="label_share">Share with Aspirants</string>
+</resources>

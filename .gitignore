@@ -1,0 +1,22 @@
+*.iml
+.gradle
+/local.properties
+/.idea/
+.DS_Store
+/build
+app/build/
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Python & Backend Secrets
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+.env
+*.log
+.aws-sam/

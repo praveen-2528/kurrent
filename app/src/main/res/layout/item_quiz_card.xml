@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="16dp"
+    android:layout_marginEnd="16dp"
+    android:layout_marginTop="8dp"
+    android:layout_marginBottom="14dp"
+    app:cardCornerRadius="18dp"
+    app:cardElevation="2dp"
+    app:strokeWidth="1dp"
+    app:strokeColor="@color/border_light"
+    app:cardBackgroundColor="@color/card_light">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- Question Meta -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tvQuizNumber"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/indigo_primary"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                tools:text="QUESTION 1 OF 3" />
+
+            <TextView
+                android:id="@+id/tvQuizExam"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/badge_upsc"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:textColor="@color/upsc_badge_text"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                tools:text="UPSC PRELIMS" />
+        </LinearLayout>
+
+        <!-- Question Text -->
+        <TextView
+            android:id="@+id/tvQuizQuestion"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:lineSpacingExtra="4dp"
+            tools:text="With reference to the RBI's revised guidelines on project finance, consider the following statements..." />
+
+        <!-- Options Container -->
+        <LinearLayout
+            android:id="@+id/layoutOptions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnOption0"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:gravity="start|center_vertical"
+                android:padding="12dp"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:strokeColor="@color/border_light"
+                tools:text="A. 1 and 2 only" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnOption1"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:gravity="start|center_vertical"
+                android:padding="12dp"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:strokeColor="@color/border_light"
+                tools:text="B. 2 and 3 only" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnOption2"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:gravity="start|center_vertical"
+                android:padding="12dp"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:strokeColor="@color/border_light"
+                tools:text="C. 1 and 3 only" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnOption3"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:gravity="start|center_vertical"
+                android:padding="12dp"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:strokeColor="@color/border_light"
+                tools:text="D. 1, 2 and 3" />
+        </LinearLayout>
+
+        <!-- Explanation Card (Appears after selecting an option) -->
+        <LinearLayout
+            android:id="@+id/layoutExplanation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="#F0FDF4"
+            android:padding="14dp"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <TextView
+                android:id="@+id/tvExplanationStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/correct_green"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                tools:text="✓ Correct Answer: Option B" />
+
+            <TextView
+                android:id="@+id/tvExplanationText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:lineSpacingExtra="3dp"
+                tools:text="Statement 1 is incorrect because the provisioning was revised to 2.5%, not 5%. Statements 2 and 3 are correct." />
+        </LinearLayout>
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

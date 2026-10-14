@@ -1,0 +1,418 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="12dp">
+
+    <!-- FRONT OF CARD (Article & Key Takeaways) -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardFront"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:cardCornerRadius="22dp"
+        app:cardElevation="3dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="@color/border_light"
+        app:cardBackgroundColor="@color/card_light">
+
+        <RelativeLayout
+            android:id="@+id/containerFront"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="20dp">
+
+            <!-- Scrollable Reading Area (Top & Middle) -->
+            <ScrollView
+                android:id="@+id/scrollReadingContent"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_above="@+id/layoutThumbZone"
+                android:scrollbars="none"
+                android:fillViewport="true">
+
+                <LinearLayout
+                    android:id="@+id/layoutContentInner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <!-- Header Meta: Category + Exam Tags -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:id="@+id/tvQuickCategory"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textColor="@color/indigo_primary"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:textAllCaps="true"
+                            android:letterSpacing="0.08"
+                            tools:text="ECONOMY &amp; BANKING" />
+
+                        <TextView
+                            android:id="@+id/tvQuickExamTag"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/badge_upsc"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:paddingTop="3dp"
+                            android:paddingBottom="3dp"
+                            android:textColor="@color/upsc_badge_text"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            tools:text="#GS3-Economy" />
+                    </LinearLayout>
+
+                    <!-- Title -->
+                    <TextView
+                        android:id="@+id/tvQuickTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:textColor="@color/text_primary"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:lineSpacingExtra="3dp"
+                        tools:text="RBI Releases Revised Framework for Project Finance Lending" />
+
+                    <!-- Headline Fact (MCQ-Ready Statement) -->
+                    <LinearLayout
+                        android:id="@+id/layoutHeadlineFact"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:background="#EEF2FF"
+                        android:padding="10dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="⚡ "
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/tvHeadlineFact"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/indigo_dark"
+                            android:textSize="12.5sp"
+                            android:textStyle="bold"
+                            tools:text="RBI eases proposed project finance provisioning to a phased 2.5% from 5%." />
+                    </LinearLayout>
+
+                    <!-- 4-5 Crisp Bullet Points (Never Walls of Text) -->
+                    <TextView
+                        android:id="@+id/tvQuickPointers"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13.5sp"
+                        android:lineSpacingExtra="4dp"
+                        tools:text="• Phased general provisioning up to 2.5% at project completion\n• Applicable to SCBs and NBFCs\n• Regional Rural Banks (RRBs) are explicitly exempted" />
+
+                    <!-- Accordion Morphing for Static GK Linkage -->
+                    <LinearLayout
+                        android:id="@+id/layoutAccordionStaticGk"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:background="#F8FAFC"
+                        android:orientation="vertical">
+
+                        <LinearLayout
+                            android:id="@+id/btnToggleStaticAccordion"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:padding="10dp"
+                            android:background="?attr/selectableItemBackground">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="🏛️ Static GK Connection"
+                                android:textColor="@color/indigo_dark"
+                                android:textSize="12.5sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvAccordionArrow"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="▼"
+                                android:textColor="@color/text_muted"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+
+                        <!-- Expandable Body (Hidden by default, expands inline) -->
+                        <LinearLayout
+                            android:id="@+id/layoutStaticGkBody"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:paddingBottom="10dp"
+                            android:orientation="vertical"
+                            android:visibility="gone"
+                            tools:visibility="visible">
+
+                            <TextView
+                                android:id="@+id/tvStaticGkContent"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp"
+                                android:lineSpacingExtra="3dp"
+                                tools:text="• RBI Act, 1934 (Hilton Young Commission)\n• Nationalised on January 1, 1949\n• Basel III CAR requirement: 11.5%" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Expandable Trap Alert / Mnemonic View -->
+                    <TextView
+                        android:id="@+id/tvQuickMnemonic"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:background="#FEF3C7"
+                        android:padding="8dp"
+                        android:textColor="@color/upsc_badge_text"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:visibility="gone"
+                        tools:visibility="visible"
+                        tools:text="💡 Mnemonic: '2.5 to Thrive, Not 5 to Strive'" />
+
+                </LinearLayout>
+            </ScrollView>
+
+            <!-- THUMB-ZONE (Bottom Third of the Screen for One-Handed Ergonomics) -->
+            <LinearLayout
+                android:id="@+id/layoutThumbZone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignParentBottom="true"
+                android:orientation="vertical"
+                android:paddingTop="10dp">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="@color/border_light"
+                    android:layout_marginBottom="10dp" />
+
+                <!-- Action Bar: Test Card (Active Recall Flip), Bookmark, Share -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <!-- 3D Flashcard Flip Action Button -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnTestCard"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:text="🎯 Test This Card (Flip)"
+                        android:textSize="12.5sp"
+                        android:textStyle="bold"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        app:cornerRadius="12dp" />
+
+                    <ImageView
+                        android:id="@+id/btnQuickBookmark"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginStart="8dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="8dp"
+                        android:src="@drawable/ic_bookmark"
+                        app:tint="@color/text_muted"
+                        android:contentDescription="@string/label_bookmark" />
+
+                    <ImageView
+                        android:id="@+id/btnQuickShare"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginStart="4dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="8dp"
+                        android:src="@drawable/ic_share"
+                        app:tint="@color/text_muted"
+                        android:contentDescription="@string/label_share" />
+                </LinearLayout>
+            </LinearLayout>
+
+        </RelativeLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- BACK OF CARD (Active Recall 3D Flip View) -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardBack"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        app:cardCornerRadius="22dp"
+        app:cardElevation="3dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="@color/border_light"
+        app:cardBackgroundColor="@color/card_light">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <!-- Active Recall Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="ACTIVE RECALL CHALLENGE"
+                    android:textColor="@color/indigo_primary"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.08" />
+
+                <TextView
+                    android:id="@+id/btnFlipBack"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:padding="6dp"
+                    android:text="↩ Flip to Notes"
+                    android:textColor="@color/indigo_primary"
+                    android:textSize="12.5sp"
+                    android:textStyle="bold"
+                    android:background="?attr/selectableItemBackground" />
+            </LinearLayout>
+
+            <!-- Quiz Question Stem -->
+            <TextView
+                android:id="@+id/tvFlipQuestion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:lineSpacingExtra="4dp"
+                tools:text="Under the revised RBI framework for project finance, which of the following is exempt?" />
+
+            <!-- Options (A, B, C, D) with Radial Feedback -->
+            <LinearLayout
+                android:id="@+id/layoutFlipOptions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:orientation="vertical">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnFlipOpt0"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:gravity="start|center_vertical"
+                    android:padding="12dp"
+                    android:textSize="13sp"
+                    app:strokeColor="@color/border_light"
+                    tools:text="A. Non-Banking Financial Companies" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnFlipOpt1"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:gravity="start|center_vertical"
+                    android:padding="12dp"
+                    android:textSize="13sp"
+                    app:strokeColor="@color/border_light"
+                    tools:text="B. Regional Rural Banks (RRBs)" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnFlipOpt2"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:gravity="start|center_vertical"
+                    android:padding="12dp"
+                    android:textSize="13sp"
+                    app:strokeColor="@color/border_light"
+                    tools:text="C. Public Sector Banks" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnFlipOpt3"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:gravity="start|center_vertical"
+                    android:padding="12dp"
+                    android:textSize="13sp"
+                    app:strokeColor="@color/border_light"
+                    tools:text="D. Private Commercial Banks" />
+            </LinearLayout>
+
+            <!-- Slide-down Explanation Box -->
+            <LinearLayout
+                android:id="@+id/layoutFlipExplanation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="#F0FDF4"
+                android:padding="12dp"
+                android:orientation="vertical"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <TextView
+                    android:id="@+id/tvFlipStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/correct_green"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    tools:text="✓ Correct! Option B" />
+
+                <TextView
+                    android:id="@+id/tvFlipExplanation"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="12.5sp"
+                    tools:text="Regional Rural Banks are explicitly exempt from the RBI's revised guidelines." />
+            </LinearLayout>
+
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</FrameLayout>

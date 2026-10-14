@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="16dp"
+    android:layout_marginEnd="16dp"
+    android:layout_marginTop="8dp"
+    android:layout_marginBottom="12dp"
+    app:cardCornerRadius="18dp"
+    app:cardElevation="2dp"
+    app:strokeWidth="1dp"
+    app:strokeColor="@color/border_light"
+    app:cardBackgroundColor="@color/card_light">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="18dp">
+
+        <!-- Header: Category & Read Time -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tvCategory"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/indigo_primary"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textAllCaps="true"
+                android:letterSpacing="0.08"
+                tools:text="ECONOMY &amp; BANKING" />
+
+            <TextView
+                android:id="@+id/tvReadTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp"
+                tools:text="3 mins read" />
+        </LinearLayout>
+
+        <!-- Title -->
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/text_primary"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:lineSpacingExtra="3dp"
+            tools:text="RBI Releases Revised Framework for Project Finance Lending" />
+
+        <!-- Exam Badges Row -->
+        <LinearLayout
+            android:id="@+id/layoutExamBadges"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal" />
+
+        <!-- Headline Fact (Highlight Box) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="#EEF2FF"
+            android:padding="12dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⚡ "
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/tvHeadlineFact"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/indigo_dark"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                tools:text="RBI eases proposed project finance provisioning to a phased 2.5% from 5%, exempting RRBs." />
+        </LinearLayout>
+
+        <!-- Context & Long Term Impact -->
+        <TextView
+            android:id="@+id/tvBackground"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="13.5sp"
+            android:lineSpacingExtra="4dp"
+            tools:text="In May 2024, RBI proposed a stringent 5% general provisioning for infrastructure projects under construction..." />
+
+        <!-- Key Facts & Figures Table -->
+        <LinearLayout
+            android:id="@+id/layoutKeyFacts"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="#F8FAFC"
+            android:padding="12dp"
+            android:orientation="vertical" />
+
+        <!-- Mnemonic Memory Hook -->
+        <LinearLayout
+            android:id="@+id/layoutMnemonic"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="#FEF3C7"
+            android:padding="10dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="💡 "
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/tvMnemonic"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/upsc_badge_text"
+                android:textSize="12.5sp"
+                android:textStyle="bold"
+                tools:text="Memory Hook: '2.5 to Thrive, Not 5 to Strive'" />
+        </LinearLayout>
+
+        <!-- Exam Distractor Traps (Trap Alert!) -->
+        <LinearLayout
+            android:id="@+id/layoutTraps"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="#FEF2F2"
+            android:padding="12dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/wrong_red"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:text="⚠️ EXAM TRAP ALERT (Avoid These Pitfalls):" />
+
+            <TextView
+                android:id="@+id/tvTraps"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="#991B1B"
+                android:textSize="12sp"
+                android:lineSpacingExtra="3dp"
+                tools:text="• Confusing RRBs as covered under this rule; RRBs are explicitly EXEMPTED.\n• Assuming 2.5% is upfront; it is phased." />
+        </LinearLayout>
+
+        <!-- Static GK Linkage & Related Revision -->
+        <LinearLayout
+            android:id="@+id/layoutStaticGk"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="vertical" />
+
+        <!-- UPSC Deep-Dive Section (Collapsible / Visible when UPSC is relevant) -->
+        <LinearLayout
+            android:id="@+id/layoutUpscSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="#F1F5F9"
+            android:padding="12dp"
+            android:orientation="vertical"
+            android:visibility="visible">
+
+            <TextView
+                android:id="@+id/tvGsPaper"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/upsc_badge_text"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                tools:text="Syllabus: GS-3 (Indian Economy &amp; Infrastructure)" />
+
+            <TextView
+                android:id="@+id/tvPrelimsPointers"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:lineSpacingExtra="3dp"
+                tools:text="• Phased general provisioning up to 2.5%\n• Applicable to SCBs and NBFCs" />
+
+            <TextView
+                android:id="@+id/tvMainsQuestion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="#E2E8F0"
+                android:padding="8dp"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp"
+                android:textStyle="italic"
+                tools:text="Mains Practice: Examine the implications of the revised project finance guidelines." />
+        </LinearLayout>
+
+        <!-- 5-Second Revision Line -->
+        <TextView
+            android:id="@+id/tvRevisionLine"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="#F0FDF4"
+            android:padding="10dp"
+            android:textColor="@color/ssc_badge_text"
+            android:textSize="12.5sp"
+            android:textStyle="bold"
+            tools:text="5-Sec Revision: RBI finalizes phased 2.5% provisioning during construction while exempting RRBs." />
+
+        <!-- Footer Actions -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/btnBookmark"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="5dp"
+                android:src="@drawable/ic_bookmark"
+                app:tint="@color/text_muted"
+                android:contentDescription="@string/label_bookmark" />
+
+            <ImageView
+                android:id="@+id/btnShare"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="12dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="5dp"
+                android:src="@drawable/ic_share"
+                app:tint="@color/text_muted"
+                android:contentDescription="@string/label_share" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/btnSource"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/indigo_primary"
+                android:textSize="12.5sp"
+                android:textStyle="bold"
+                android:padding="6dp"
+                tools:text="Official Source ↗" />
+        </LinearLayout>
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

@@ -1,0 +1,18 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.Kurrent" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/indigo_primary</item>
+        <item name="colorPrimaryVariant">@color/indigo_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">@color/teal_accent</item>
+        <item name="colorSecondaryVariant">@color/teal_dark</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor">@color/surface_dark</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+        <!-- Background -->
+        <item name="android:windowBackground">@color/bg_light</item>
+    </style>
+</resources>

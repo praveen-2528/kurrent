@@ -1,0 +1,13 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme (Night Mode). -->
+    <style name="Theme.Kurrent" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/indigo_primary</item>
+        <item name="colorPrimaryVariant">@color/indigo_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/teal_accent</item>
+        <item name="colorSecondaryVariant">@color/teal_dark</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="android:statusBarColor">@color/surface_dark</item>
+        <item name="android:windowBackground">@color/surface_dark</item>
+    </style>
+</resources>

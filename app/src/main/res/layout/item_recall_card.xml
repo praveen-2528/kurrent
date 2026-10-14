@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="16dp"
+    android:layout_marginEnd="16dp"
+    android:layout_marginTop="6dp"
+    android:layout_marginBottom="10dp"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="1dp"
+    app:strokeWidth="1dp"
+    app:strokeColor="@color/border_light"
+    app:cardBackgroundColor="@color/card_light">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tvRecallDate"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/indigo_primary"
+                android:textSize="11.5sp"
+                android:textStyle="bold"
+                tools:text="RECALL • OCT 08, 2026" />
+
+            <TextView
+                android:id="@+id/tvRecallCategory"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_muted"
+                android:textSize="11.5sp"
+                tools:text="Defence &amp; Security" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvRecallTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            tools:text="DRDO Flight-Tests Hypersonic Missile off Odisha Coast" />
+
+        <TextView
+            android:id="@+id/tvRecallFact"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
+            android:lineSpacingExtra="3dp"
+            tools:text="Maiden test from Dr APJ Abdul Kalam Island achieved hypersonic velocity (> Mach 5) with a strike range exceeding 1,500 km." />
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

@@ -1,0 +1,124 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Kurrent Backend - 100% AWS Free-Tier Serverless Infrastructure
+  Daily Current Affairs automated ingestion and edge API.
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: python3.11
+    Architectures:
+      - arm64 # Graviton2: 20% cheaper and faster (also covered under Lambda free tier)
+
+Parameters:
+  EmailAccount:
+    Type: String
+    Description: Gmail or email address receiving the morning briefing
+    Default: "your-email@gmail.com"
+  EmailAppPassword:
+    Type: String
+    NoEcho: true
+    Description: 16-character Google App Password for IMAP access
+    Default: "xxxx xxxx xxxx xxxx"
+
+Resources:
+  # 1. Amazon DynamoDB Table (Always Free Tier: 25 GB storage, 25 WCU / 25 RCU)
+  KurrentBriefingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: kurrent_briefings
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+  # 2. Daily Ingestion Lambda Function (Runs at 05:15 AM IST / 23:45 UTC)
+  EmailIngestionWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: kurrent-email-worker
+      CodeUri: .
+      Handler: lambda_email_worker.lambda_handler
+      Timeout: 60
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref KurrentBriefingsTable
+      Environment:
+        Variables:
+          IMAP_SERVER: "imap.gmail.com"
+          EMAIL_ACCOUNT: !Ref EmailAccount
+          EMAIL_APP_PASSWORD: !Ref EmailAppPassword
+          DYNAMODB_TABLE: !Ref KurrentBriefingsTable
+      Events:
+        MorningSchedule:
+          Type: Schedule
+          Properties:
+            # 23:45 UTC = 05:15 AM Indian Standard Time (IST)
+            Schedule: "cron(45 23 * * ? *)"
+            Description: "Trigger morning email fetch at 05:15 AM IST"
+
+  # 3. HTTP API Gateway (1 Million requests/month free)
+  KurrentHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Name: kurrent-http-api
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - OPTIONS
+        AllowHeaders:
+          - "*"
+        MaxAge: 3600
+
+  # 4. Mobile API Handler Lambda
+  ApiHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: kurrent-api-handler
+      CodeUri: .
+      Handler: lambda_api_handler.lambda_handler
+      Timeout: 10
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref KurrentBriefingsTable
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref KurrentBriefingsTable
+      Events:
+        GetTodayBriefing:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref KurrentHttpApi
+            Path: /briefing/today
+            Method: GET
+        GetPastBriefing:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref KurrentHttpApi
+            Path: /briefing/{date}
+            Method: GET
+        RootPath:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref KurrentHttpApi
+            Path: /
+            Method: GET
+
+Outputs:
+  ApiEndpoint:
+    Description: "HTTP API Gateway URL for the Kurrent Android App"
+    Value: !Sub "https://${KurrentHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  DynamoDBTableName:
+    Description: "DynamoDB Table Name"
+    Value: !Ref KurrentBriefingsTable

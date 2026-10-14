@@ -1,0 +1,15 @@
+[Unit]
+Description=Kurrent FastAPI Backend Service
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/kurrent/backend/ec2
+ExecStart=/usr/bin/python3 -m uvicorn server:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/home/ubuntu/kurrent/backend/ec2/.env
+
+[Install]
+WantedBy=multi-user.target
