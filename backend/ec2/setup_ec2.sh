@@ -35,6 +35,9 @@ pip3 install fastapi "uvicorn[standard]"
 echo "=== 3. Creating and Registering Systemd Service ==="
 PYTHON_BIN=$(which python3)
 
+# Ensure .env exists so systemd doesn't fail
+touch "$APP_DIR/.env"
+
 cat <<EOF > /tmp/kurrent.service
 [Unit]
 Description=Kurrent FastAPI Backend Service
@@ -47,7 +50,7 @@ ExecStart=$PYTHON_BIN -m uvicorn server:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
-EnvironmentFile=$APP_DIR/.env
+EnvironmentFile=-$APP_DIR/.env
 
 [Install]
 WantedBy=multi-user.target
