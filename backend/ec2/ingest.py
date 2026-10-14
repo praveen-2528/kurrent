@@ -13,12 +13,22 @@ from email.header import decode_header
 import json
 from datetime import datetime
 
-# Allow importing parser from parent directory or local directory
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure parent backend directories are at the top of sys.path
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_backend_dir = os.path.dirname(_current_dir)
+_root_dir = os.path.dirname(_backend_dir)
+
+for _p in [_backend_dir, _root_dir]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
 try:
-    from parser import parse_markdown_email
+    from kurrent_parser import parse_markdown_email
 except ImportError:
-    from backend.parser import parse_markdown_email
+    try:
+        from parser import parse_markdown_email
+    except ImportError:
+        from backend.parser import parse_markdown_email
 
 from database import save_briefing, init_db
 
