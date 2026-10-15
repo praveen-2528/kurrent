@@ -61,8 +61,8 @@ systemctl daemon-reload
 systemctl enable kurrent
 systemctl restart kurrent
 
-echo "=== 4. Setting up Ingestion Cron (05:15 AM IST / 23:45 UTC) ==="
-CRON_JOB="45 23 * * * $PYTHON_BIN $APP_DIR/ingest.py >> $APP_DIR/ingest.log 2>&1"
+echo "=== 4. Setting up Hourly Ingestion Cron (Runs every hour at :00) ==="
+CRON_JOB="0 * * * * $PYTHON_BIN $APP_DIR/ingest.py >> $APP_DIR/ingest.log 2>&1"
 (crontab -l 2>/dev/null | grep -v "ingest.py" ; echo "$CRON_JOB") | crontab -
 
 echo "=== 5. Verifying Service Status ==="
