@@ -47,9 +47,9 @@ class ArticleAdapter(
         fun bind(article: Article) {
             val context = binding.root.context
 
-            binding.tvCategory.text = article.category
-            binding.tvReadTime.text = article.readTime
-            binding.tvTitle.text = article.title
+            binding.tvCategory.text = article.category.ifBlank { "General Awareness" }
+            binding.tvReadTime.text = article.readTime.ifBlank { "2 mins" }
+            binding.tvTitle.text = article.title.ifBlank { "Current Affair" }
 
             // 1. Exam Badges
             binding.layoutExamBadges.removeAllViews()
@@ -59,7 +59,7 @@ class ArticleAdapter(
             }
 
             // 2. Headline Fact
-            if (article.headlineFact.isNotBlank()) {
+            if (!article.headlineFact.isNullOrBlank()) {
                 binding.tvHeadlineFact.visibility = View.VISIBLE
                 binding.tvHeadlineFact.text = article.headlineFact
             } else {
@@ -68,10 +68,10 @@ class ArticleAdapter(
 
             // 3. Background & Impact
             val contextText = StringBuilder()
-            if (article.background.isNotBlank()) {
+            if (!article.background.isNullOrBlank()) {
                 contextText.append(article.background)
             }
-            if (article.longTermImpact.isNotBlank()) {
+            if (!article.longTermImpact.isNullOrBlank()) {
                 if (contextText.isNotEmpty()) contextText.append("\n\n")
                 contextText.append("Impact: ").append(article.longTermImpact)
             }
@@ -79,7 +79,7 @@ class ArticleAdapter(
 
             // 4. Key Facts & Figures Table
             binding.layoutKeyFacts.removeAllViews()
-            if (article.keyFactsFigures.isNotEmpty()) {
+            if (!article.keyFactsFigures.isNullOrEmpty()) {
                 binding.layoutKeyFacts.visibility = View.VISIBLE
                 val header = TextView(context).apply {
                     text = "Key Verified Figures:"
@@ -104,7 +104,7 @@ class ArticleAdapter(
             }
 
             // 5. Mnemonic Memory Hook
-            if (article.mnemonic.isNotBlank()) {
+            if (!article.mnemonic.isNullOrBlank()) {
                 binding.layoutMnemonic.visibility = View.VISIBLE
                 binding.tvMnemonic.text = "Memory Hook: ${article.mnemonic}"
             } else {
@@ -112,7 +112,7 @@ class ArticleAdapter(
             }
 
             // 6. Distractor Traps (Trap Alert!)
-            if (article.distractorTraps.isNotEmpty()) {
+            if (!article.distractorTraps.isNullOrEmpty()) {
                 binding.layoutTraps.visibility = View.VISIBLE
                 binding.tvTraps.text = article.distractorTraps.joinToString("\n") { "• $it" }
             } else {
@@ -121,7 +121,7 @@ class ArticleAdapter(
 
             // 7. Static GK Linkage & Revision
             binding.layoutStaticGk.removeAllViews()
-            val hasStatic = article.staticGkLinkage.isNotEmpty() || article.relatedStaticRevision.isNotEmpty()
+            val hasStatic = !article.staticGkLinkage.isNullOrEmpty() || !article.relatedStaticRevision.isNullOrEmpty()
             if (hasStatic) {
                 binding.layoutStaticGk.visibility = View.VISIBLE
                 val staticHeader = TextView(context).apply {
@@ -157,15 +157,16 @@ class ArticleAdapter(
             }
 
             // 8. UPSC Section
-            if (article.upscData != null) {
+            val upsc = article.upscData
+            if (upsc != null) {
                 binding.layoutUpscSection.visibility = View.VISIBLE
-                binding.tvGsPaper.text = "Syllabus: ${article.upscData.gsPaper}"
+                binding.tvGsPaper.text = "Syllabus: ${upsc.gsPaper}"
                 binding.tvPrelimsPointers.text =
-                    article.upscData.prelimsFacts.joinToString("\n") { "• $it" }
+                    upsc.prelimsFacts.joinToString("\n") { "• $it" }
 
-                if (article.upscData.mainsQuestion.isNotBlank()) {
+                if (!upsc.mainsQuestion.isNullOrBlank()) {
                     binding.tvMainsQuestion.visibility = View.VISIBLE
-                    binding.tvMainsQuestion.text = "Mains Practice: ${article.upscData.mainsQuestion}"
+                    binding.tvMainsQuestion.text = "Mains Practice: ${upsc.mainsQuestion}"
                 } else {
                     binding.tvMainsQuestion.visibility = View.GONE
                 }
@@ -174,7 +175,7 @@ class ArticleAdapter(
             }
 
             // 9. 5-Second Revision Line
-            if (article.revisionLine.isNotBlank()) {
+            if (!article.revisionLine.isNullOrBlank()) {
                 binding.tvRevisionLine.visibility = View.VISIBLE
                 binding.tvRevisionLine.text = "⚡ 5-Sec Revision: ${article.revisionLine}"
             } else {
@@ -202,9 +203,9 @@ class ArticleAdapter(
             }
 
             // 12. Official Source Link
-            if (article.sourceUrl.isNotBlank()) {
+            if (!article.sourceUrl.isNullOrBlank()) {
                 binding.btnSource.visibility = View.VISIBLE
-                binding.btnSource.text = if (article.sourceName.isNotBlank()) "${article.sourceName} ↗" else "Official Source ↗"
+                binding.btnSource.text = if (!article.sourceName.isNullOrBlank()) "${article.sourceName} ↗" else "Official Source ↗"
                 binding.btnSource.setOnClickListener {
                     try {
                         val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(article.sourceUrl))

@@ -60,14 +60,14 @@ class QuickCardAdapter(
             binding.cardBack.rotationY = -90f
 
             // --- FRONT CARD BINDING ---
-            binding.tvQuickCategory.text = article.category
-            binding.tvQuickTitle.text = article.title
+            binding.tvQuickCategory.text = article.category.ifBlank { "General Awareness" }
+            binding.tvQuickTitle.text = article.title.ifBlank { "Current Affair" }
 
             val mainExam = article.exams.firstOrNull() ?: "General"
             binding.tvQuickExamTag.text = "#$mainExam"
 
             // Headline Fact
-            if (article.headlineFact.isNotBlank()) {
+            if (!article.headlineFact.isNullOrBlank()) {
                 binding.layoutHeadlineFact.visibility = View.VISIBLE
                 binding.tvHeadlineFact.text = article.headlineFact
             } else {
@@ -76,27 +76,27 @@ class QuickCardAdapter(
 
             // 4-5 Crisp Bullet Points (Never walls of text)
             val pointers = StringBuilder()
-            if (article.keyFactsFigures.isNotEmpty()) {
+            if (!article.keyFactsFigures.isNullOrEmpty()) {
                 for (fact in article.keyFactsFigures.take(4)) {
                     pointers.append("• ").append(fact.key).append(": ").append(fact.value).append("\n")
                 }
-            } else if (article.upscData != null && article.upscData.prelimsFacts.isNotEmpty()) {
+            } else if (article.upscData != null && !article.upscData.prelimsFacts.isNullOrEmpty()) {
                 for (fact in article.upscData.prelimsFacts.take(4)) {
                     pointers.append("• ").append(fact).append("\n")
                 }
-            } else {
+            } else if (!article.background.isNullOrBlank()) {
                 pointers.append("• ").append(article.background)
             }
             binding.tvQuickPointers.text = pointers.toString().trimEnd()
 
             // Accordion Morphing for Static GK Linkage
             val staticContent = StringBuilder()
-            if (article.staticGkLinkage.isNotEmpty()) {
+            if (!article.staticGkLinkage.isNullOrEmpty()) {
                 for (gk in article.staticGkLinkage) {
                     staticContent.append("• ").append(gk.key).append(": ").append(gk.value).append("\n")
                 }
             }
-            if (article.relatedStaticRevision.isNotEmpty()) {
+            if (!article.relatedStaticRevision.isNullOrEmpty()) {
                 for (rev in article.relatedStaticRevision) {
                     staticContent.append("• Revision (").append(rev.key).append("): ").append(rev.value).append("\n")
                 }
@@ -121,7 +121,7 @@ class QuickCardAdapter(
             }
 
             // Mnemonic pill
-            if (article.mnemonic.isNotBlank()) {
+            if (!article.mnemonic.isNullOrBlank()) {
                 binding.tvQuickMnemonic.visibility = View.VISIBLE
                 binding.tvQuickMnemonic.text = "💡 Mnemonic: ${article.mnemonic}"
             } else {

@@ -32,6 +32,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Ensure any unexpected runtime errors are cleanly logged
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            android.util.Log.e("KurrentCrash", "FATAL CRASH on thread ${thread.name}: ${throwable.message}", throwable)
+        }
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -43,9 +49,13 @@ class MainActivity : AppCompatActivity() {
 
         // Sync with live EC2 backend asynchronously in background
         lifecycleScope.launch {
-            SampleDataRepository.syncWithBackend { liveBriefing ->
-                setupHeader()
-                loadData()
+            try {
+                SampleDataRepository.syncWithBackend { liveBriefing ->
+                    setupHeader()
+                    loadData()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("KurrentMain", "Error updating UI after sync: ${e.message}", e)
             }
         }
     }
