@@ -32,14 +32,28 @@ except ImportError:
 
 from database import save_briefing, init_db
 
+# Automatically read .env file in the current directory if present
+def _load_env_file():
+    env_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if os.path.exists(env_file):
+        with open(env_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, val = line.split("=", 1)
+                    os.environ[key.strip()] = val.strip().strip("'\"")
+
+_load_env_file()
+
 # Credentials (read from environment or .env file)
-IMAP_SERVER = os.environ.get("IMAP_SERVER", "imap.gmail.com")
-EMAIL_ACCOUNT = os.environ.get("EMAIL_ACCOUNT", "your-email@gmail.com")
-EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD", "your-16-char-app-password")
+IMAP_SERVER = os.environ.get("IMAP_SERVER", "imap.gmail.com").strip()
+EMAIL_ACCOUNT = os.environ.get("EMAIL_ACCOUNT", "your-email@gmail.com").strip()
+# Remove spaces if Google App Password was copied with spaces (e.g. "xxxx xxxx xxxx xxxx" -> "xxxxxxxxxxxxxxxx")
+EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD", "your-16-char-app-password").replace(" ", "").strip()
 
 
 def fetch_and_ingest():
-    print(f"[{datetime.now().isoformat()}] Starting email fetch from {EMAIL_ACCOUNT}...")
+    print(f"[{datetime.now().isoformat()}] Starting email fetch from account: {EMAIL_ACCOUNT}...")
 
     init_db()
 
