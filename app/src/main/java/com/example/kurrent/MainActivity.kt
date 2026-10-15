@@ -74,6 +74,13 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Request notification permission for background audio playback controls on Android 13+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
+
         setupWindowInsets()
         setupAudioNewsManager()
         setupSwipeRefresh()
@@ -291,7 +298,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupAudioNewsManager() {
-        audioNewsManager = AudioNewsManager(this)
+        audioNewsManager = AudioNewsManager.getInstance(this)
 
         // Track updates when moving through news items
         audioNewsManager.onTrackChangedListener = { article, currentTrack, totalTracks ->
@@ -299,6 +306,19 @@ class MainActivity : AppCompatActivity() {
                 binding.tvPlayerTitle.text = article.title
                 binding.tvPlayerSubtitle.text = "Track $currentTrack of $totalTracks • ${article.category}"
                 articleAdapter.setCurrentlySpeaking(article.id)
+
+                // Hands-Free Auto-Sync: advance quick card if on cards tab & mark read
+                val cardIndex = currentTrack - 1
+                if (cardIndex in 0 until totalTracks) {
+                    if (binding.vpQuickCards.currentItem != cardIndex) {
+                        binding.vpQuickCards.setCurrentItem(cardIndex, true)
+                    }
+                    if (!readCardIndices.contains(cardIndex)) {
+                        readCardIndices.add(cardIndex)
+                        updateProgressRing(readCardIndices.size, totalTracks)
+                        syncCloudProgress()
+                    }
+                }
             }
         }
 
@@ -312,19 +332,36 @@ class MainActivity : AppCompatActivity() {
                     binding.ivAudioDigestIcon.setImageResource(R.drawable.ic_pause)
                     binding.waveformPlayer.setPlaying(true)
                 } else {
-                    binding.layoutMiniAudioPlayer.visibility = View.GONE
-                    binding.tvAudioDigestText.text = "Listen"
-                    binding.ivAudioDigestIcon.setImageResource(R.drawable.ic_headphones)
-                    binding.waveformPlayer.setPlaying(false)
-                    articleAdapter.setCurrentlySpeaking(null)
+                    if (audioNewsManager.getCurrentArticle() != null && audioNewsManager.isQueueMode) {
+                        binding.layoutMiniAudioPlayer.visibility = View.VISIBLE
+                        binding.btnPlayerPlayPause.setImageResource(R.drawable.ic_play)
+                        binding.tvAudioDigestText.text = "Paused"
+                        binding.ivAudioDigestIcon.setImageResource(R.drawable.ic_headphones)
+                        binding.waveformPlayer.setPlaying(false)
+                    } else {
+                        binding.layoutMiniAudioPlayer.visibility = View.GONE
+                        binding.tvAudioDigestText.text = "Listen"
+                        binding.ivAudioDigestIcon.setImageResource(R.drawable.ic_headphones)
+                        binding.waveformPlayer.setPlaying(false)
+                        articleAdapter.setCurrentlySpeaking(null)
+                    }
                 }
+            }
+        }
+
+        // Audio speed cycling updates
+        audioNewsManager.onSpeedChanged = { speed ->
+            runOnUiThread {
+                binding.btnPlayerSpeed.text = "${speed}x"
             }
         }
 
         // Top bar "Listen" button -> Read full daily digest
         binding.btnAudioDigest.setOnClickListener {
             if (audioNewsManager.isSpeaking()) {
-                audioNewsManager.stop()
+                audioNewsManager.pauseOrResume()
+            } else if (audioNewsManager.getCurrentArticle() != null) {
+                audioNewsManager.pauseOrResume()
             } else {
                 val articlesToPlay = SampleDataRepository.searchArticles(currentSearchQuery, currentExamFilter)
                 if (articlesToPlay.isNotEmpty()) {
@@ -338,13 +375,27 @@ class MainActivity : AppCompatActivity() {
         // Mini player controls
         binding.btnPlayerPlayPause.setOnClickListener {
             if (audioNewsManager.isSpeaking()) {
-                audioNewsManager.stop()
+                audioNewsManager.pauseOrResume()
+            } else if (audioNewsManager.getCurrentArticle() != null) {
+                audioNewsManager.pauseOrResume()
             } else {
                 val articlesToPlay = SampleDataRepository.searchArticles(currentSearchQuery, currentExamFilter)
                 if (articlesToPlay.isNotEmpty()) {
                     audioNewsManager.playAll(articlesToPlay)
                 }
             }
+        }
+
+        binding.btnPlayerSpeed.setOnClickListener {
+            audioNewsManager.cycleSpeed()
+        }
+
+        binding.btnPlayerPrev.setOnClickListener {
+            audioNewsManager.skipPrevious()
+        }
+
+        binding.btnPlayerNext.setOnClickListener {
+            audioNewsManager.skipNext()
         }
 
         binding.btnPlayerClose.setOnClickListener {
@@ -672,7 +723,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (::audioNewsManager.isInitialized) {
+        if (::audioNewsManager.isInitialized && !audioNewsManager.isSpeaking()) {
             audioNewsManager.release()
         }
     }

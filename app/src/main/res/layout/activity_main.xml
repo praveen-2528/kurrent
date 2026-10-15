@@ -617,6 +617,34 @@
                     android:textSize="11sp" />
             </LinearLayout>
 
+            <!-- Speed Toggle Button -->
+            <TextView
+                android:id="@+id/btnPlayerSpeed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_date_chip"
+                android:paddingStart="7dp"
+                android:paddingEnd="7dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:text="1.0x"
+                android:textColor="@color/teal_accent"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:clickable="true"
+                android:focusable="true"
+                android:layout_marginEnd="4dp" />
+
+            <!-- Previous Button -->
+            <ImageView
+                android:id="@+id/btnPlayerPrev"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:padding="5dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_skip_previous"
+                app:tint="@color/text_muted" />
+
             <!-- Play / Pause Button -->
             <ImageView
                 android:id="@+id/btnPlayerPlayPause"
@@ -627,13 +655,23 @@
                 android:src="@drawable/ic_pause"
                 app:tint="@color/white" />
 
+            <!-- Next Button -->
+            <ImageView
+                android:id="@+id/btnPlayerNext"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:padding="5dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_skip_next"
+                app:tint="@color/text_muted" />
+
             <!-- Stop Button -->
             <ImageView
                 android:id="@+id/btnPlayerClose"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_marginStart="4dp"
-                android:padding="6dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginStart="2dp"
+                android:padding="5dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_stop"
                 app:tint="@color/text_muted" />

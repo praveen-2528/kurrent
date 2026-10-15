@@ -11,6 +11,9 @@ import com.example.kurrent.model.RecallItem
 import com.example.kurrent.model.UpscData
 import com.google.gson.Gson
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 object SampleDataRepository {
 
@@ -361,5 +364,67 @@ object SampleDataRepository {
             return stats
         }
         return null
+    }
+
+    /**
+     * Returns total number of daily briefings cached locally on device disk for offline commute.
+     */
+    fun getOfflineCachedDaysCount(): Int {
+        val dir = cacheDir ?: return 1
+        val files = dir.listFiles { f -> f.name.startsWith("briefing_") && f.name.endsWith(".json") }
+        return (files?.size ?: 1).coerceAtLeast(1)
+    }
+
+    /**
+     * Aggregates all articles across cached briefings for monthly PDF compilation.
+     */
+    fun getAllCachedArticles(): List<Article> {
+        val dir = cacheDir ?: return activeBriefing.articles
+        val files = dir.listFiles { f -> f.name.startsWith("briefing_") && f.name.endsWith(".json") } ?: return activeBriefing.articles
+        val list = mutableListOf<Article>()
+        val seenIds = mutableSetOf<String>()
+
+        for (a in activeBriefing.articles) {
+            if (seenIds.add(a.id)) list.add(a)
+        }
+
+        for (file in files) {
+            try {
+                val briefing = gson.fromJson(file.readText(), DailyBriefing::class.java)
+                for (a in briefing.articles) {
+                    if (seenIds.add(a.id)) {
+                        list.add(a)
+                    }
+                }
+            } catch (ignored: Exception) {}
+        }
+        return if (list.isNotEmpty()) list else activeBriefing.articles
+    }
+
+    /**
+     * Gets today's active briefing articles.
+     */
+    fun getArticles(): List<Article> = activeBriefing.articles
+
+    /**
+     * Downloads recent briefings into local storage for seamless subway/airplane commute mode.
+     */
+    suspend fun preFetchRecentBriefings(daysCount: Int = 14, onComplete: ((Int) -> Unit)? = null): Int {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val cal = Calendar.getInstance()
+
+        for (i in 0 until daysCount) {
+            val dateStr = sdf.format(cal.time)
+            try {
+                val b = ApiClient.getBriefingByDate(dateStr)
+                if (b != null && b.articles.isNotEmpty()) {
+                    saveToDisk(dateStr, b)
+                }
+            } catch (ignored: Exception) {}
+            cal.add(Calendar.DAY_OF_YEAR, -1)
+        }
+        val count = getOfflineCachedDaysCount()
+        onComplete?.invoke(count)
+        return count
     }
 }

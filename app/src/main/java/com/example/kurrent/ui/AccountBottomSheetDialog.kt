@@ -11,6 +11,7 @@ import com.example.kurrent.data.AuthManager
 import com.example.kurrent.data.SampleDataRepository
 import com.example.kurrent.data.network.ApiClient
 import com.example.kurrent.databinding.BottomSheetAccountBinding
+import com.example.kurrent.export.DigestPdfExporter
 import com.example.kurrent.model.RegisterWithOtpRequest
 import com.example.kurrent.model.UserStats
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -67,6 +68,7 @@ class AccountBottomSheetDialog(
                 else -> "Comprehensive Aspirant (All Exams)"
             }
         }
+        binding.tvOfflineCacheStatus.text = "${SampleDataRepository.getOfflineCachedDaysCount()} Days Ready"
 
         // Fetch latest stats from server
         val token = AuthManager.getAuthToken() ?: return
@@ -86,6 +88,7 @@ class AccountBottomSheetDialog(
         binding.tvProfileStreak.text = "${stats.currentStreak} Days"
         binding.tvProfileTotalRead.text = "${stats.totalArticlesRead}"
         binding.tvProfileBookmarks.text = "${stats.cloudBookmarks.size}"
+        binding.tvOfflineCacheStatus.text = "${SampleDataRepository.getOfflineCachedDaysCount()} Days Ready"
     }
 
     private fun showGuestView() {
@@ -241,6 +244,50 @@ class AccountBottomSheetDialog(
                 } else {
                     Toast.makeText(context, "Sync complete (offline cache up to date)", Toast.LENGTH_SHORT).show()
                 }
+            }
+        }
+
+        // Offline Commute Pack Download
+        binding.btnDownloadOfflinePack.setOnClickListener {
+            binding.btnDownloadOfflinePack.isEnabled = false
+            binding.btnDownloadOfflinePack.text = "Caching 30 Days..."
+            lifecycleScope.launch {
+                val count = SampleDataRepository.preFetchRecentBriefings(30)
+                binding.tvOfflineCacheStatus.text = "${SampleDataRepository.getOfflineCachedDaysCount()} Days Ready"
+                binding.btnDownloadOfflinePack.text = "✓ 30 Days Cached"
+                binding.btnDownloadOfflinePack.isEnabled = true
+                Toast.makeText(context, "Offline Commute Pack Ready ($count articles cached)", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // 1-Click Monthly PDF Export
+        binding.btnExportMonthlyPdf.setOnClickListener {
+            val articles = SampleDataRepository.getAllCachedArticles()
+            if (articles.isEmpty()) {
+                Toast.makeText(context, "No articles available to export", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val title = "Kurrent Monthly Digest - ${java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.getDefault()).format(java.util.Date())}"
+            val file = DigestPdfExporter.exportDigestPdf(requireContext(), articles, title)
+            if (file != null) {
+                DigestPdfExporter.sharePdf(requireContext(), file, "Monthly Current Affairs Digest")
+            } else {
+                Toast.makeText(context, "Failed to generate PDF", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // 1-Click Daily Briefing PDF Export
+        binding.btnExportDailyPdf.setOnClickListener {
+            val dailyArticles = SampleDataRepository.getArticles()
+            if (dailyArticles.isEmpty()) {
+                Toast.makeText(context, "No articles for today to export", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val file = DigestPdfExporter.exportDailyBriefingPdf(requireContext(), dailyArticles)
+            if (file != null) {
+                DigestPdfExporter.sharePdf(requireContext(), file, "Today's Current Affairs Digest")
+            } else {
+                Toast.makeText(context, "Failed to generate PDF", Toast.LENGTH_SHORT).show()
             }
         }
 
