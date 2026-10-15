@@ -12,6 +12,8 @@ import com.example.kurrent.adapter.RecallAdapter
 import com.example.kurrent.data.SampleDataRepository
 import com.example.kurrent.databinding.ActivityMainBinding
 import com.example.kurrent.ui.CardStackPageTransformer
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -38,6 +40,14 @@ class MainActivity : AppCompatActivity() {
         setupExamFilters()
         setupBottomNavigation()
         loadData()
+
+        // Sync with live EC2 backend asynchronously in background
+        lifecycleScope.launch {
+            SampleDataRepository.syncWithBackend { liveBriefing ->
+                setupHeader()
+                loadData()
+            }
+        }
     }
 
     private fun setupHeader() {

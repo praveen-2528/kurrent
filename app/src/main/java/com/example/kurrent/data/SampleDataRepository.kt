@@ -1,5 +1,6 @@
 package com.example.kurrent.data
 
+import com.example.kurrent.data.network.ApiClient
 import com.example.kurrent.model.Article
 import com.example.kurrent.model.DailyBriefing
 import com.example.kurrent.model.FactItem
@@ -9,8 +10,10 @@ import com.example.kurrent.model.UpscData
 
 object SampleDataRepository {
 
-    private val cachedBriefing: DailyBriefing by lazy {
-        DailyBriefing(
+    private var activeBriefing: DailyBriefing = createDefaultBriefing()
+
+    private fun createDefaultBriefing(): DailyBriefing {
+        return DailyBriefing(
             date = "2026-10-15",
             edition = 143,
             articles = listOf(
@@ -172,10 +175,22 @@ object SampleDataRepository {
         )
     }
 
-    fun getDailyBriefing(): DailyBriefing = cachedBriefing
+    fun getDailyBriefing(): DailyBriefing = activeBriefing
+
+    /**
+     * Attempts to fetch live briefing from the EC2 backend.
+     * If successful, updates activeBriefing and triggers callback.
+     */
+    suspend fun syncWithBackend(onSuccess: (DailyBriefing) -> Unit) {
+        val liveBriefing = ApiClient.getTodayBriefing()
+        if (liveBriefing != null && liveBriefing.articles.isNotEmpty()) {
+            activeBriefing = liveBriefing
+            onSuccess(liveBriefing)
+        }
+    }
 
     fun getArticlesByFilter(examFilter: String): List<Article> {
-        val all = cachedBriefing.articles
+        val all = activeBriefing.articles
         return if (examFilter == "ALL") {
             all
         } else {
@@ -192,10 +207,10 @@ object SampleDataRepository {
         }
     }
 
-    fun getRecalls(): List<RecallItem> = cachedBriefing.recalls
+    fun getRecalls(): List<RecallItem> = activeBriefing.recalls
 
     fun toggleBookmark(articleId: String): Boolean {
-        val article = cachedBriefing.articles.find { it.id == articleId }
+        val article = activeBriefing.articles.find { it.id == articleId }
         article?.let {
             it.isBookmarked = !it.isBookmarked
             return it.isBookmarked
