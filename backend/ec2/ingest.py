@@ -69,49 +69,55 @@ def fetch_and_ingest():
             print("No unread email found. Checking latest email with [KURRENT-DAILY] in subject...")
             status, messages = mail.search(None, '(SUBJECT "[KURRENT-DAILY]")')
 
-        email_ids = messages[0].split()
-        if not email_ids:
-            print("No Kurrent briefing email found in inbox.")
-            mail.logout()
-            return False
+        is_unseen_batch = (status == "OK" and bool(messages[0]))
+        targets = email_ids if is_unseen_batch else [email_ids[-1]]
 
-        # Pick the latest email
-        latest_id = email_ids[-1]
-        res, msg_data = mail.fetch(latest_id, "(RFC822)")
+        print(f"Found {len(targets)} email(s) to process (unseen batch: {is_unseen_batch}).")
+        ingested_count = 0
 
-        raw_email = msg_data[0][1]
-        msg = email.message_from_bytes(raw_email)
+        for email_id in targets:
+            try:
+                res, msg_data = mail.fetch(email_id, "(RFC822)")
+                if not msg_data or not msg_data[0]:
+                    continue
 
-        # 2. Extract body
-        body = ""
-        if msg.is_multipart():
-            for part in msg.walk():
-                content_type = part.get_content_type()
-                content_disposition = str(part.get("Content-Disposition"))
-                if content_type == "text/plain" and "attachment" not in content_disposition:
-                    body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
-                    break
-        else:
-            body = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
+                raw_email = msg_data[0][1]
+                msg = email.message_from_bytes(raw_email)
 
-        if not body:
-            print("Email body was empty.")
-            mail.logout()
-            return False
+                # 2. Extract body
+                body = ""
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        content_type = part.get_content_type()
+                        content_disposition = str(part.get("Content-Disposition"))
+                        if content_type == "text/plain" and "attachment" not in content_disposition:
+                            body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                            break
+                else:
+                    body = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
 
-        # 3. Parse with Kurrent Parser
-        parsed = parse_markdown_email(body)
-        print(f"Successfully parsed briefing for date: {parsed['date']} (Edition #{parsed['edition']})")
-        print(f"Stats: {len(parsed['articles'])} articles, {len(parsed['recalls'])} recalls, {len(parsed['quizzes'])} quizzes.")
+                if not body:
+                    print(f"Email ID {email_id.decode('utf-8', errors='ignore')} body was empty.")
+                    continue
 
-        # 4. Save to SQLite database
-        save_briefing(parsed["date"], parsed["edition"], parsed)
-        print("Saved briefing to SQLite database!")
+                # 3. Parse with Kurrent Parser
+                parsed = parse_markdown_email(body)
+                print(f"Successfully parsed briefing for date: {parsed['date']} (Edition #{parsed['edition']})")
+                print(f"Stats: {len(parsed['articles'])} articles, {len(parsed['recalls'])} recalls, {len(parsed['quizzes'])} quizzes.")
 
-        # Mark as read
-        mail.store(latest_id, "+FLAGS", "\\Seen")
+                # 4. Save to SQLite database under its extracted DATE tag
+                save_briefing(parsed["date"], parsed["edition"], parsed)
+                print(f"Saved briefing for date '{parsed['date']}' to SQLite database!")
+
+                # Mark as read
+                mail.store(email_id, "+FLAGS", "\\Seen")
+                ingested_count += 1
+            except Exception as item_err:
+                print(f"Error parsing email ID {email_id}: {str(item_err)}")
+
         mail.logout()
-        return True
+        print(f"Completed ingestion: successfully saved {ingested_count} briefing(s).")
+        return ingested_count > 0
 
     except Exception as e:
         print(f"Error during ingestion: {str(e)}")
