@@ -104,3 +104,33 @@ You can view the morning ingestion logs anytime:
 ```bash
 cat ~/kurrent/backend/ec2/ingest.log
 ```
+
+---
+
+## 6. High-Security Admin Mission Control Portal
+Access the Admin Command Center at:
+* **`http://<YOUR-EC2-PUBLIC-IP>:8000/admin`** (or `/docs`)
+* **Default Admin Username**: `admin`
+* **Default Security Key**: `Kurrent#Admin2026!Master`
+
+### Customizing Admin Credentials
+Edit your `.env` file anytime to change credentials:
+```bash
+nano ~/kurrent/backend/ec2/.env
+```
+Add or change:
+```text
+ADMIN_USERNAME=your_custom_admin_username
+ADMIN_PASSWORD=your_super_strong_password
+```
+Then restart the service:
+```bash
+sudo systemctl restart kurrent
+```
+
+### Security Features
+- **Brute-Force Lockout**: Automatically locks out IP addresses for 15 minutes after 5 consecutive failed login attempts.
+- **Timing-Attack Resistance**: Uses constant-time cryptographic hash comparisons (`secrets.compare_digest`).
+- **Cryptographic Session Tokens**: Signs 8-hour operational tokens via HMAC-SHA256 with HttpOnly SameSite cookie support.
+- **Protected APIs**: All administrative actions (triggering ingestion, deleting briefings, resetting student OTPs) strictly require admin authorization.
+

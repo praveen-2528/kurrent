@@ -204,7 +204,7 @@ def get_briefing_for_date(date: str):
 
 
 @app.post("/ingest/trigger")
-def trigger_ingestion():
+def trigger_ingestion(admin: dict = Depends(admin_portal.verify_admin)):
     success = fetch_and_ingest(force_check_seen=True)
     if success:
         return {"status": "success", "message": "Successfully ingested briefing(s)."}

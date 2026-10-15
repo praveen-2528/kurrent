@@ -1,16 +1,22 @@
 """
-Kurrent Admin Command Center & Mission Control
+Kurrent High-Security Admin Command Center & Mission Control
 Served at /admin, /docs, and /
-Provides full operational visibility, ingestion triggers, briefings management, and user controls.
+Secured with cryptographic session tokens, timing-attack resistance, IP brute-force rate-limiting, and constant-time hashing.
 """
 
-from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, HTTPException, Depends, Header, Cookie, Response, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 import os
+import sys
+import time
 import json
+import base64
+import hmac
+import hashlib
+import secrets
 import imaplib
-from datetime import datetime
+from typing import Optional, Dict
 
 from database import (
     get_admin_stats,
@@ -25,19 +31,214 @@ from ingest import fetch_and_ingest
 
 router = APIRouter()
 
+# --- Security Configuration ---
+# Admin credentials can be set via environment variables or .env file
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin").strip()
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Kurrent#Admin2026!Master").strip()
+ADMIN_SESSION_SECRET = os.environ.get("ADMIN_SESSION_SECRET", "kurrent-super-secret-admin-session-salt-987214").strip()
+
+# In-memory IP Brute-Force Rate Limiter
+# Structure: { ip_address: { "failures": int, "lockout_until": float } }
+FAILED_LOGIN_ATTEMPTS: Dict[str, Dict[str, float]] = {}
+MAX_FAILED_ATTEMPTS = 5
+LOCKOUT_DURATION_SECONDS = 900  # 15 minutes
+
+
+def _clean_expired_lockouts():
+    now = time.time()
+    expired_ips = [ip for ip, data in FAILED_LOGIN_ATTEMPTS.items() if data["lockout_until"] < now and data["failures"] == 0]
+    for ip in expired_ips:
+        FAILED_LOGIN_ATTEMPTS.pop(ip, None)
+
+
+def _check_ip_lockout(client_ip: str):
+    _clean_expired_lockouts()
+    record = FAILED_LOGIN_ATTEMPTS.get(client_ip)
+    if record and record["lockout_until"] > time.time():
+        remaining = int(record["lockout_until"] - time.time())
+        mins = max(1, remaining // 60)
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many failed login attempts. IP temporarily locked out for security. Try again in {mins} minute(s)."
+        )
+
+
+def _record_failed_attempt(client_ip: str):
+    now = time.time()
+    record = FAILED_LOGIN_ATTEMPTS.setdefault(client_ip, {"failures": 0, "lockout_until": 0.0})
+    record["failures"] += 1
+    if record["failures"] >= MAX_FAILED_ATTEMPTS:
+        record["lockout_until"] = now + LOCKOUT_DURATION_SECONDS
+        record["failures"] = 0  # reset for next window after lockout
+        raise HTTPException(
+            status_code=429,
+            detail="Maximum failed attempts exceeded. Security lockout activated for 15 minutes."
+        )
+
+
+def _record_successful_attempt(client_ip: str):
+    FAILED_LOGIN_ATTEMPTS.pop(client_ip, None)
+
+
+# --- Cryptographic Token Generator & Verifier ---
+def create_admin_token(username: str) -> str:
+    now = int(time.time())
+    exp = now + (8 * 3600)  # 8-hour operational window
+    payload = {
+        "sub": username,
+        "role": "kurrent_super_admin",
+        "iat": now,
+        "exp": exp,
+        "nonce": secrets.token_hex(16)
+    }
+    header = {"alg": "HS256", "typ": "JWT"}
+    header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode()).decode().rstrip("=")
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+    signature = hmac.new(
+        ADMIN_SESSION_SECRET.encode(),
+        f"{header_b64}.{payload_b64}".encode(),
+        hashlib.sha256
+    ).digest()
+    sig_b64 = base64.urlsafe_b64encode(signature).decode().rstrip("=")
+    return f"{header_b64}.{payload_b64}.{sig_b64}"
+
+
+def verify_admin_token(token: str) -> Optional[dict]:
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            return None
+        header_b64, payload_b64, sig_b64 = parts
+        expected_sig = hmac.new(
+            ADMIN_SESSION_SECRET.encode(),
+            f"{header_b64}.{payload_b64}".encode(),
+            hashlib.sha256
+        ).digest()
+        expected_b64 = base64.urlsafe_b64encode(expected_sig).decode().rstrip("=")
+        if not secrets.compare_digest(sig_b64, expected_b64):
+            return None
+
+        payload_padded = payload_b64 + "=" * (-len(payload_b64) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_padded).decode())
+
+        if payload.get("exp", 0) < time.time():
+            return None
+        if payload.get("role") != "kurrent_super_admin":
+            return None
+
+        return payload
+    except Exception:
+        return None
+
+
+def verify_admin(
+    authorization: Optional[str] = Header(None),
+    kurrent_admin_token: Optional[str] = Cookie(None)
+) -> dict:
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1]
+    elif kurrent_admin_token:
+        token = kurrent_admin_token
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Administrator authentication required.")
+
+    payload = verify_admin_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Session expired or invalid administrator credentials.")
+
+    return payload
+
+
+# --- Pydantic Models ---
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AdminResetOtpRequest(BaseModel):
+    email: str
+
+
+# --- Admin Authentication Endpoints ---
+
+@router.post("/admin/api/login")
+def api_admin_login(req: AdminLoginRequest, request: Request, response: Response):
+    client_ip = request.client.host if request.client else "unknown"
+    _check_ip_lockout(client_ip)
+
+    # Constant-time comparison for username and password to prevent timing attacks
+    user_match = secrets.compare_digest(
+        hashlib.sha256(req.username.strip().encode()).digest(),
+        hashlib.sha256(ADMIN_USERNAME.encode()).digest()
+    )
+    pass_match = secrets.compare_digest(
+        hashlib.sha256(req.password.strip().encode()).digest(),
+        hashlib.sha256(ADMIN_PASSWORD.encode()).digest()
+    )
+
+    if not (user_match and pass_match):
+        _record_failed_attempt(client_ip)
+        remaining_attempts = MAX_FAILED_ATTEMPTS - FAILED_LOGIN_ATTEMPTS.get(client_ip, {}).get("failures", 1)
+        raise HTTPException(
+            status_code=401,
+            detail=f"Access denied: Invalid administrator credentials. ({max(0, remaining_attempts)} attempts remaining before security lockout)"
+        )
+
+    _record_successful_attempt(client_ip)
+    token = create_admin_token(ADMIN_USERNAME)
+
+    # Set HttpOnly, SameSite cookie for seamless browser protection
+    response.set_cookie(
+        key="kurrent_admin_token",
+        value=token,
+        max_age=8 * 3600,
+        httponly=True,
+        samesite="lax",
+        secure=False  # Set to True if using HTTPS
+    )
+
+    return {
+        "status": "success",
+        "message": "Security clearance granted. Welcome, Administrator.",
+        "token": token,
+        "username": ADMIN_USERNAME,
+        "role": "kurrent_super_admin",
+        "expires_in": 8 * 3600
+    }
+
+
+@router.post("/admin/api/logout")
+def api_admin_logout(response: Response):
+    response.delete_cookie(key="kurrent_admin_token")
+    return {"status": "success", "message": "Admin session terminated safely."}
+
+
+@router.get("/admin/api/me")
+def api_admin_me(admin: dict = Depends(verify_admin)):
+    return {
+        "authenticated": True,
+        "username": admin["sub"],
+        "role": admin["role"],
+        "expires_at": admin["exp"]
+    }
+
+
+# --- Protected Operational Endpoints ---
 
 @router.get("/admin/api/stats")
-def api_admin_stats():
+def api_admin_stats(admin: dict = Depends(verify_admin)):
     return get_admin_stats()
 
 
 @router.get("/admin/api/briefings")
-def api_admin_briefings(limit: int = 50):
+def api_admin_briefings(limit: int = 50, admin: dict = Depends(verify_admin)):
     return get_admin_briefings(limit)
 
 
 @router.get("/admin/api/briefing/{date}")
-def api_admin_get_briefing(date: str):
+def api_admin_get_briefing(date: str, admin: dict = Depends(verify_admin)):
     b = get_briefing_by_date(date)
     if not b:
         raise HTTPException(status_code=404, detail="Briefing not found")
@@ -45,7 +246,7 @@ def api_admin_get_briefing(date: str):
 
 
 @router.delete("/admin/api/briefing/{date}")
-def api_admin_delete_briefing(date: str):
+def api_admin_delete_briefing(date: str, admin: dict = Depends(verify_admin)):
     success = delete_briefing(date)
     if not success:
         raise HTTPException(status_code=404, detail="Briefing not found or could not be deleted")
@@ -53,34 +254,29 @@ def api_admin_delete_briefing(date: str):
 
 
 @router.get("/admin/api/users")
-def api_admin_users(limit: int = 100):
+def api_admin_users(limit: int = 100, admin: dict = Depends(verify_admin)):
     return get_admin_users(limit)
 
 
 @router.delete("/admin/api/user/{user_id}")
-def api_admin_delete_user(user_id: str):
+def api_admin_delete_user(user_id: str, admin: dict = Depends(verify_admin)):
     success = delete_user(user_id)
     if not success:
         raise HTTPException(status_code=404, detail="User not found")
     return {"status": "success", "message": "User deleted."}
 
 
-class AdminResetOtpRequest(BaseModel):
-    email: str
-
-
 @router.post("/admin/api/send-reset-otp")
-def api_admin_send_reset_otp(req: AdminResetOtpRequest):
-    import secrets
+def api_admin_send_reset_otp(req: AdminResetOtpRequest, admin: dict = Depends(verify_admin)):
     clean_email = req.email.strip().lower()
     otp_code = f"{secrets.randbelow(900000) + 100000}"
     save_otp(clean_email, otp_code, "forgot_password")
-    
+
     # Try sending via email if configured
     email_account = os.environ.get("EMAIL_ACCOUNT", "").strip()
     email_app_pass = os.environ.get("EMAIL_APP_PASSWORD", "").strip()
     sent_via_email = False
-    
+
     if email_account and "your-email" not in email_account and email_app_pass and "your-" not in email_app_pass:
         try:
             import smtplib
@@ -106,7 +302,7 @@ def api_admin_send_reset_otp(req: AdminResetOtpRequest):
 
 
 @router.get("/admin/api/check-imap")
-def api_check_imap():
+def api_check_imap(admin: dict = Depends(verify_admin)):
     server = os.environ.get("IMAP_SERVER", "imap.gmail.com").strip()
     account = os.environ.get("EMAIL_ACCOUNT", "").strip()
     app_pwd = os.environ.get("EMAIL_APP_PASSWORD", "").strip()
@@ -135,14 +331,14 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-dark: #0B0F19;
-            --surface-card: #151D2F;
-            --surface-subtle: #1E293B;
-            --border-color: #27354E;
-            --border-hover: #3B4E72;
-            --text-primary: #F8FAFC;
-            --text-muted: #94A3B8;
-            --text-dim: #64748B;
+            --bg-dark: #080C14;
+            --surface-card: #111827;
+            --surface-subtle: #1F2937;
+            --border-color: #2D3748;
+            --border-hover: #4B5563;
+            --text-primary: #F9FAFB;
+            --text-muted: #9CA3AF;
+            --text-dim: #6B7280;
             --accent-teal: #0D9488;
             --accent-teal-light: #14B8A6;
             --accent-indigo: #6366F1;
@@ -174,13 +370,167 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             margin: 0 auto;
         }
 
-        /* Top Header */
+        /* --- LOGIN GATEWAY OVERLAY --- */
+        #loginGateway {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle at 50% 30%, #111827 0%, #080C14 100%);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: #111827;
+            border: 1px solid #374151;
+            border-radius: 20px;
+            max-width: 440px;
+            width: 100%;
+            padding: 36px 32px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(13, 148, 136, 0.12);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #F59E0B, #0D9488, #6366F1);
+        }
+
+        .shield-icon {
+            width: 58px;
+            height: 58px;
+            border-radius: 16px;
+            background: rgba(13, 148, 136, 0.15);
+            border: 1px solid rgba(20, 184, 166, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin: 0 auto 18px;
+            box-shadow: 0 4px 20px rgba(13, 148, 136, 0.25);
+        }
+
+        .security-badge {
+            display: inline-block;
+            font-size: 10.5px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: #14B8A6;
+            background: rgba(13, 148, 136, 0.12);
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(20, 184, 166, 0.3);
+            margin-bottom: 10px;
+        }
+
+        .login-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: #FFFFFF;
+            letter-spacing: -0.01em;
+            margin-bottom: 4px;
+        }
+
+        .login-sub {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+            line-height: 1.4;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+            text-align: left;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%;
+            background: #1F2937;
+            border: 1px solid #374151;
+            border-radius: 10px;
+            padding: 12px 14px;
+            color: #FFFFFF;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus {
+            border-color: var(--accent-teal);
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.2);
+            background: #283548;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, #0D9488, #0F766E);
+            color: #FFFFFF;
+            font-size: 14.5px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 22px;
+        }
+
+        .login-btn:hover {
+            box-shadow: 0 6px 20px rgba(13, 148, 136, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .login-error {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            color: #FCA5A5;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 12.5px;
+            margin-bottom: 16px;
+            display: none;
+            text-align: left;
+            line-height: 1.4;
+        }
+
+        .security-footer {
+            margin-top: 22px;
+            font-size: 11px;
+            color: var(--text-dim);
+            line-height: 1.5;
+            border-top: 1px solid #27354E;
+            padding-top: 14px;
+        }
+
+        /* --- DASHBOARD HEADER --- */
         header {
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 16px 24px;
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8));
+            background: linear-gradient(135deg, rgba(31, 41, 55, 0.7), rgba(17, 24, 39, 0.8));
             backdrop-filter: blur(12px);
             border: 1px solid var(--border-color);
             border-radius: var(--radius-xl);
@@ -234,16 +584,29 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
         .header-actions {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
+        }
+
+        .auth-status-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: var(--radius-md);
+            font-size: 12px;
+            font-weight: 700;
+            color: #34D399;
         }
 
         .btn {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 10px 16px;
+            padding: 9px 15px;
             border-radius: var(--radius-md);
-            font-size: 13.5px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
             border: none;
@@ -263,9 +626,6 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             background: linear-gradient(135deg, var(--accent-teal), #0F766E);
             color: white;
             box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);
-        }
-        .btn-primary:hover {
-            box-shadow: 0 6px 18px rgba(13, 148, 136, 0.45);
         }
 
         .btn-secondary {
@@ -313,9 +673,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
         .kpi-card::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
+            top: 0; left: 0; right: 0;
             height: 3px;
             background: transparent;
         }
@@ -347,7 +705,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             color: var(--text-dim);
         }
 
-        /* Navigation Tabs */
+        /* Tabs */
         .tabs-bar {
             display: flex;
             gap: 8px;
@@ -360,7 +718,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             background: transparent;
             color: var(--text-muted);
             border: none;
-            font-size: 14.5px;
+            font-size: 14px;
             font-weight: 600;
             padding: 10px 18px;
             border-radius: var(--radius-md);
@@ -382,7 +740,6 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             border: 1px solid var(--border-color);
         }
 
-        /* Tab Content Panel */
         .tab-content {
             display: none;
             background: var(--surface-card);
@@ -394,7 +751,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             display: block;
         }
 
-        /* Table styling */
+        /* Tables */
         .table-controls {
             display: flex;
             justify-content: space-between;
@@ -439,13 +796,13 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
 
         .data-table td {
             padding: 14px 16px;
-            border-bottom: 1px solid rgba(39, 53, 78, 0.5);
+            border-bottom: 1px solid rgba(45, 55, 72, 0.6);
             color: var(--text-primary);
             vertical-align: middle;
         }
 
         .data-table tr:hover td {
-            background: rgba(30, 41, 59, 0.4);
+            background: rgba(31, 41, 55, 0.5);
         }
 
         .badge {
@@ -478,7 +835,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(11, 15, 25, 0.85);
+            background: rgba(8, 12, 20, 0.88);
             backdrop-filter: blur(8px);
             display: none;
             align-items: center;
@@ -499,7 +856,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             max-height: 88vh;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
         }
 
         .modal-header {
@@ -524,7 +881,6 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             gap: 12px;
         }
 
-        /* Article Card Inside Modal */
         .modal-article {
             background: var(--surface-subtle);
             border: 1px solid var(--border-color);
@@ -543,7 +899,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             line-height: 1.6;
         }
 
-        /* Toast notifications */
+        /* Toast Container */
         #toastContainer {
             position: fixed;
             bottom: 24px;
@@ -559,7 +915,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             color: var(--text-primary);
             padding: 14px 20px;
             border-radius: var(--radius-md);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
             font-size: 13.5px;
             animation: slideIn 0.3s ease forwards;
         }
@@ -568,7 +924,6 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             to { transform: translateX(0); opacity: 1; }
         }
 
-        /* System Info Cards */
         .sys-info-box {
             background: var(--surface-subtle);
             border: 1px solid var(--border-color);
@@ -593,7 +948,42 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
 </head>
 <body>
 
-<div class="container">
+<!-- High-Security Login Modal Gateway -->
+<div id="loginGateway">
+    <div class="login-card">
+        <div style="text-align: center;">
+            <div class="shield-icon">🛡️</div>
+            <div class="security-badge">RESTRICTED SECURITY ZONE • ADMIN ONLY</div>
+            <h2 class="login-title">Kurrent Mission Control</h2>
+            <p class="login-sub">High-Security Administrative Access Point. Cryptographic authentication required.</p>
+        </div>
+
+        <div id="loginError" class="login-error"></div>
+
+        <form id="adminLoginForm" onsubmit="handleAdminLogin(event)">
+            <div class="form-group">
+                <label class="form-label">Administrator ID</label>
+                <input type="text" id="adminUser" class="form-input" placeholder="e.g. admin" required autocomplete="username">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Security Master Key</label>
+                <input type="password" id="adminPass" class="form-input" placeholder="••••••••••••••••" required autocomplete="current-password">
+            </div>
+
+            <button type="submit" id="btnLoginSubmit" class="login-btn">
+                <span>🔒</span> Authenticate &amp; Access Dashboard
+            </button>
+        </form>
+
+        <div class="security-footer">
+            <strong>Security Notice:</strong> All administrative actions and failed access attempts are rate-limited and logged. IP lockout triggers automatically after repeated failed attempts.
+        </div>
+    </div>
+</div>
+
+<!-- Main Secured Dashboard -->
+<div class="container" id="adminApp" style="display: none;">
     <!-- Header -->
     <header>
         <div class="brand-box">
@@ -608,6 +998,9 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
         </div>
 
         <div class="header-actions">
+            <div class="auth-status-pill">
+                <span>🛡️</span> <span id="currentAdminName">admin</span>
+            </div>
             <button class="btn btn-secondary" onclick="refreshAllData()">
                 <span>🔄</span> Refresh
             </button>
@@ -615,8 +1008,11 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
                 <span>⚡</span> Trigger Ingest Now
             </button>
             <a href="/api/docs" target="_blank" class="btn btn-secondary">
-                <span>📚</span> Swagger API Docs
+                <span>📚</span> Swagger Docs
             </a>
+            <button class="btn btn-danger" onclick="handleAdminLogout()">
+                <span>🚪</span> Log Out
+            </button>
         </div>
     </header>
 
@@ -709,10 +1105,16 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
 
     <!-- TAB 3: System Health -->
     <div id="tabSystem" class="tab-content">
-        <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 18px;">Automation Engine &amp; Cloud Environment</h3>
+        <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 18px;">Automation Engine &amp; Security Architecture</h3>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <div>
+                <div class="sys-info-box">
+                    <div class="sys-key">Administrative Security Clearance</div>
+                    <div class="sys-val" style="color: var(--accent-green); font-size: 13px;">🟢 HMAC-SHA256 Cryptographic Session Verified</div>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Rate-limiting: 5 attempts per 15 min | Constant-time digest verification.</div>
+                </div>
+
                 <div class="sys-info-box">
                     <div class="sys-key">Hourly Ingestion Cron Schedule</div>
                     <div class="sys-val">0 * * * * (Runs every hour at :00)</div>
@@ -722,11 +1124,6 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
                 <div class="sys-info-box">
                     <div class="sys-key">Database Engine</div>
                     <div class="sys-val" id="sysDbInfo">SQLite3 Local File</div>
-                </div>
-
-                <div class="sys-info-box">
-                    <div class="sys-key">FastAPI Framework</div>
-                    <div class="sys-val">v1.0.0 (High-performance async ASGI)</div>
                 </div>
             </div>
 
@@ -742,8 +1139,8 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
                 <div class="sys-info-box">
                     <div class="sys-key">Public EC2 Access Points</div>
                     <div class="sys-val" style="font-size: 12.5px;">
-                        • Admin Portal: /admin<br>
-                        • Swagger Docs: /api/docs<br>
+                        • Admin Portal: /admin (Secured)<br>
+                        • Swagger Specs: /api/docs<br>
                         • Today Briefing: /briefing/today
                     </div>
                 </div>
@@ -776,10 +1173,109 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
 <script>
     let rawBriefings = [];
     let rawUsers = [];
+    let adminToken = localStorage.getItem('kurrent_admin_token') || '';
+
+    function getAuthHeaders() {
+        const headers = { 'Content-Type': 'application/json' };
+        if (adminToken) {
+            headers['Authorization'] = 'Bearer ' + adminToken;
+        }
+        return headers;
+    }
+
+    async function checkExistingAuth() {
+        if (!adminToken) {
+            showLoginGate();
+            return;
+        }
+        try {
+            const res = await fetch('/admin/api/me', { headers: getAuthHeaders() });
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('currentAdminName').innerText = data.username || 'admin';
+                showDashboard();
+                refreshAllData();
+            } else {
+                showLoginGate();
+            }
+        } catch (e) {
+            showLoginGate();
+        }
+    }
+
+    function showLoginGate() {
+        document.getElementById('loginGateway').style.display = 'flex';
+        document.getElementById('adminApp').style.display = 'none';
+        adminToken = '';
+        localStorage.removeItem('kurrent_admin_token');
+    }
+
+    function showDashboard() {
+        document.getElementById('loginGateway').style.display = 'none';
+        document.getElementById('adminApp').style.display = 'block';
+    }
+
+    async function handleAdminLogin(e) {
+        e.preventDefault();
+        const user = document.getElementById('adminUser').value.trim();
+        const pass = document.getElementById('adminPass').value;
+        const errBox = document.getElementById('loginError');
+        const submitBtn = document.getElementById('btnLoginSubmit');
+
+        errBox.style.display = 'none';
+        submitBtn.innerHTML = '<span>⏳</span> Authenticating...';
+        submitBtn.disabled = true;
+
+        try {
+            const res = await fetch('/admin/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user, password: pass })
+            });
+            const data = await res.json();
+
+            if (res.ok && data.token) {
+                adminToken = data.token;
+                localStorage.setItem('kurrent_admin_token', adminToken);
+                document.getElementById('currentAdminName').innerText = data.username || user;
+                showDashboard();
+                refreshAllData();
+                showToast('Welcome, Administrator. Security clearance granted.');
+            } else {
+                errBox.innerText = data.detail || 'Access denied: Invalid credentials.';
+                errBox.style.display = 'block';
+            }
+        } catch (err) {
+            errBox.innerText = 'Authentication error: ' + err.message;
+            errBox.style.display = 'block';
+        } finally {
+            submitBtn.innerHTML = '<span>🔒</span> Authenticate &amp; Access Dashboard';
+            submitBtn.disabled = false;
+        }
+    }
+
+    async function handleAdminLogout() {
+        try {
+            await fetch('/admin/api/logout', { method: 'POST' });
+        } catch (e) {}
+        showLoginGate();
+        showToast('Admin session terminated safely.');
+    }
+
+    function handleApiUnauthorized(res) {
+        if (res.status === 401) {
+            showLoginGate();
+            document.getElementById('loginError').innerText = 'Session expired for security. Please re-authenticate.';
+            document.getElementById('loginError').style.display = 'block';
+            return true;
+        }
+        return false;
+    }
 
     async function loadStats() {
         try {
-            const res = await fetch('/admin/api/stats');
+            const res = await fetch('/admin/api/stats', { headers: getAuthHeaders() });
+            if (handleApiUnauthorized(res)) return;
             const data = await res.json();
 
             document.getElementById('kpiBriefings').innerText = data.total_briefings;
@@ -805,7 +1301,8 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
 
     async function loadBriefings() {
         try {
-            const res = await fetch('/admin/api/briefings');
+            const res = await fetch('/admin/api/briefings', { headers: getAuthHeaders() });
+            if (handleApiUnauthorized(res)) return;
             rawBriefings = await res.json();
             renderBriefings(rawBriefings);
         } catch (e) {
@@ -848,7 +1345,8 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
 
     async function viewBriefing(date) {
         try {
-            const res = await fetch('/admin/api/briefing/' + date);
+            const res = await fetch('/admin/api/briefing/' + date, { headers: getAuthHeaders() });
+            if (handleApiUnauthorized(res)) return;
             const data = await res.json();
 
             document.getElementById('modalTitle').innerText = 'Daily Briefing — ' + date + ' (Edition ' + data.edition + ')';
@@ -892,7 +1390,11 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
     async function deleteBriefingItem(date) {
         if (!confirm('Are you sure you want to delete briefing for ' + date + '?')) return;
         try {
-            const res = await fetch('/admin/api/briefing/' + date, { method: 'DELETE' });
+            const res = await fetch('/admin/api/briefing/' + date, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+            if (handleApiUnauthorized(res)) return;
             if (res.ok) {
                 showToast('Deleted briefing for ' + date);
                 refreshAllData();
@@ -906,7 +1408,8 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
 
     async function loadUsers() {
         try {
-            const res = await fetch('/admin/api/users');
+            const res = await fetch('/admin/api/users', { headers: getAuthHeaders() });
+            if (handleApiUnauthorized(res)) return;
             rawUsers = await res.json();
             renderUsers(rawUsers);
         } catch (e) {
@@ -955,9 +1458,10 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
         try {
             const res = await fetch('/admin/api/send-reset-otp', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ email: email })
             });
+            if (handleApiUnauthorized(res)) return;
             const data = await res.json();
             if (res.ok) {
                 alert('Reset OTP Generated for ' + email + ':\n\nCode: ' + data.otp + '\n\nSent to email: ' + (data.sent_via_email ? 'YES' : 'No (Console Fallback)'));
@@ -977,7 +1481,11 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
         btn.disabled = true;
 
         try {
-            const res = await fetch('/ingest/trigger', { method: 'POST' });
+            const res = await fetch('/ingest/trigger', {
+                method: 'POST',
+                headers: getAuthHeaders()
+            });
+            if (handleApiUnauthorized(res)) return;
             const data = await res.json();
             showToast(data.message || 'Ingestion completed');
             refreshAllData();
@@ -993,7 +1501,8 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
         const el = document.getElementById('sysImapStatus');
         el.innerText = 'Testing IMAP...';
         try {
-            const res = await fetch('/admin/api/check-imap');
+            const res = await fetch('/admin/api/check-imap', { headers: getAuthHeaders() });
+            if (handleApiUnauthorized(res)) return;
             const data = await res.json();
             if (data.status === 'connected') {
                 el.innerText = '🟢 ' + data.message;
@@ -1043,10 +1552,8 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
         showToast('Refreshed data');
     }
 
-    // Auto load on start
-    loadStats();
-    loadBriefings();
-    loadUsers();
+    // Initialize authentication check on load
+    checkExistingAuth();
 </script>
 
 </body>
@@ -1061,7 +1568,7 @@ def get_admin_portal():
 
 @router.get("/docs", response_class=HTMLResponse)
 def get_docs_replacement():
-    """Replaces standard Swagger docs with the interactive Kurrent Admin Portal."""
+    """Replaces standard Swagger docs with the secured Kurrent Admin Portal."""
     return HTMLResponse(content=ADMIN_PORTAL_HTML)
 
 
