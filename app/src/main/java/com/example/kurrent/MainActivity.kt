@@ -58,8 +58,9 @@ class MainActivity : AppCompatActivity() {
             android.util.Log.e("KurrentCrash", "FATAL CRASH on thread ${thread.name}: ${throwable.message}", throwable)
         }
 
-        // Initialize local disk cache for instant offline access
+        // Initialize local disk cache and authentication manager
         SampleDataRepository.init(this)
+        com.example.kurrent.data.AuthManager.init(this)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -68,6 +69,7 @@ class MainActivity : AppCompatActivity() {
         setupAudioNewsManager()
         setupSwipeRefresh()
         setupSearch()
+        setupAccountActions()
         setupHeader()
         setupAdapters()
         setupExamFilters()
@@ -84,6 +86,7 @@ class MainActivity : AppCompatActivity() {
                         loadData()
                     }
                 }
+                syncCloudProgress()
             } catch (e: Exception) {
                 android.util.Log.e("KurrentMain", "Error updating UI after sync: ${e.message}", e)
             }
@@ -115,6 +118,57 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupAccountActions() {
+        updateProfileHeader()
+
+        binding.btnProfile.setOnClickListener {
+            showAccountSheet()
+        }
+
+        binding.layoutStreakBadge.setOnClickListener {
+            showAccountSheet()
+        }
+    }
+
+    private fun showAccountSheet() {
+        val sheet = com.example.kurrent.ui.AccountBottomSheetDialog { isLoggedIn ->
+            updateProfileHeader()
+            if (isLoggedIn) {
+                syncCloudProgress()
+            }
+        }
+        sheet.show(supportFragmentManager, "ACCOUNT_SHEET")
+    }
+
+    private fun updateProfileHeader() {
+        if (com.example.kurrent.data.AuthManager.isLoggedIn()) {
+            val user = com.example.kurrent.data.AuthManager.getUserProfile()
+            val firstName = user?.displayName?.split(" ")?.firstOrNull() ?: "Profile"
+            binding.tvProfileStatus.text = firstName
+            val stats = com.example.kurrent.data.AuthManager.getUserStats()
+            if (stats != null) {
+                binding.tvStreak.text = "${stats.currentStreak} Days"
+            }
+        } else {
+            binding.tvProfileStatus.text = "Account"
+        }
+    }
+
+    private fun syncCloudProgress() {
+        if (com.example.kurrent.data.AuthManager.isLoggedIn()) {
+            lifecycleScope.launch {
+                val articles = SampleDataRepository.getDailyBriefing().articles
+                val readIds = readCardIndices.mapNotNull { idx -> articles.getOrNull(idx)?.id }
+                val stats = SampleDataRepository.syncUserCloudProgress(readIds)
+                if (stats != null) {
+                    binding.tvStreak.text = "${stats.currentStreak} Days"
+                    articleAdapter.notifyDataSetChanged()
+                    quickCardAdapter.notifyDataSetChanged()
+                }
+            }
+        }
+    }
+
     private fun setupHeader() {
         val briefing = SampleDataRepository.getDailyBriefing()
         val dateLabel = if (selectedDate == null || selectedDate == briefing.date) {
@@ -123,7 +177,13 @@ class MainActivity : AppCompatActivity() {
             "${briefing.date} • #${briefing.edition}"
         }
         binding.tvHeaderDate.text = dateLabel
-        binding.tvStreak.text = "7 Days"
+        val stats = com.example.kurrent.data.AuthManager.getUserStats()
+        if (stats != null) {
+            binding.tvStreak.text = "${stats.currentStreak} Days"
+        } else {
+            binding.tvStreak.text = "7 Days"
+        }
+        updateProfileHeader()
         updateProgressRing(readCardIndices.size, briefing.articles.size)
     }
 
@@ -331,6 +391,7 @@ class MainActivity : AppCompatActivity() {
                 if (currentTabId == R.id.nav_saved) {
                     refreshSavedTab()
                 }
+                syncCloudProgress()
             },
             onListenClicked = { article ->
                 audioNewsManager.togglePlayArticle(article)
@@ -345,6 +406,7 @@ class MainActivity : AppCompatActivity() {
         quickCardAdapter = QuickCardAdapter(emptyList()) { article ->
             SampleDataRepository.toggleBookmark(article.id)
             articleAdapter.notifyDataSetChanged()
+            syncCloudProgress()
         }
         binding.vpQuickCards.apply {
             adapter = quickCardAdapter
@@ -355,6 +417,7 @@ class MainActivity : AppCompatActivity() {
                     readCardIndices.add(position)
                     val total = quickCardAdapter.itemCount
                     updateProgressRing(readCardIndices.size, total)
+                    syncCloudProgress()
                 }
             })
         }

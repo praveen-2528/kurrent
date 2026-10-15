@@ -1,0 +1,516 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_quick_card"
+    android:orientation="vertical"
+    android:paddingStart="24dp"
+    android:paddingEnd="24dp"
+    android:paddingTop="16dp"
+    android:paddingBottom="36dp">
+
+    <!-- Bottom Sheet Drag Handle Indicator -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="16dp"
+        android:background="#334155" />
+
+    <!-- 1. GUEST AUTH VIEW (Sign In / Sign Up with Email OTP) -->
+    <LinearLayout
+        android:id="@+id/layoutGuestView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="visible">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Kurrent Account &amp; Sync"
+            android:textColor="@color/white"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Save your daily reading streak, bookmarks &amp; quiz history securely to the cloud."
+            android:textColor="@color/text_muted"
+            android:textSize="12.5sp" />
+
+        <!-- Tab Switcher: Sign In vs Sign Up -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_search_box"
+            android:padding="3dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tabSignIn"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="Sign In"
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                android:textSize="13sp"
+                android:background="@drawable/bg_date_chip" />
+
+            <TextView
+                android:id="@+id/tabSignUp"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="Create Account"
+                android:textColor="@color/text_muted"
+                android:textStyle="bold"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- FORM A: Sign In -->
+        <LinearLayout
+            android:id="@+id/formSignIn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical"
+            android:visibility="visible">
+
+            <EditText
+                android:id="@+id/etLoginEmail"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:background="@drawable/bg_search_box"
+                android:hint="Email address"
+                android:inputType="textEmailAddress"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:textColor="@color/white"
+                android:textColorHint="@color/text_muted"
+                android:textSize="13sp" />
+
+            <EditText
+                android:id="@+id/etLoginPassword"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_search_box"
+                android:hint="Password"
+                android:inputType="textPassword"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:textColor="@color/white"
+                android:textColorHint="@color/text_muted"
+                android:textSize="13sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSubmitSignIn"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="16dp"
+                android:text="Sign In"
+                android:textAllCaps="false"
+                android:textSize="14sp"
+                app:cornerRadius="10dp"
+                app:backgroundTint="@color/teal_accent"
+                android:textColor="@color/surface_dark" />
+        </LinearLayout>
+
+        <!-- FORM B: Sign Up Step 1 (Details & Send OTP) -->
+        <LinearLayout
+            android:id="@+id/formSignUpStep1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/etSignUpName"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:background="@drawable/bg_search_box"
+                android:hint="Full Name"
+                android:inputType="textPersonName"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:textColor="@color/white"
+                android:textColorHint="@color/text_muted"
+                android:textSize="13sp" />
+
+            <EditText
+                android:id="@+id/etSignUpEmail"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_search_box"
+                android:hint="Email address for verification"
+                android:inputType="textEmailAddress"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:textColor="@color/white"
+                android:textColorHint="@color/text_muted"
+                android:textSize="13sp" />
+
+            <!-- Target Exam Choice -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Target Competitive Exam:"
+                android:textColor="@color/text_muted"
+                android:textSize="11.5sp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/chipGroupSignUpExams"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                app:singleSelection="true">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipSignUpUpsc"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="UPSC"
+                    android:checked="true" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipSignUpSsc"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SSC CGL" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipSignUpIbps"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="IBPS / Banking" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipSignUpAll"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="All Exams" />
+            </com.google.android.material.chip.ChipGroup>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSendOtp"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="16dp"
+                android:text="Send 6-Digit Verification Code"
+                android:textAllCaps="false"
+                android:textSize="13sp"
+                app:cornerRadius="10dp"
+                app:backgroundTint="@color/teal_accent"
+                android:textColor="@color/surface_dark" />
+        </LinearLayout>
+
+        <!-- FORM C: Sign Up Step 2 (Verify OTP & Set Password) -->
+        <LinearLayout
+            android:id="@+id/formSignUpStep2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tvOtpInstruction"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="We sent a 6-digit code to your email. Enter it below to complete verification:"
+                android:textColor="@color/teal_accent"
+                android:textSize="12.5sp" />
+
+            <EditText
+                android:id="@+id/etOtpCode"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_search_box"
+                android:hint="6-Digit OTP (e.g. 123456)"
+                android:inputType="number"
+                android:maxLength="6"
+                android:gravity="center"
+                android:letterSpacing="0.2"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:textColor="@color/white"
+                android:textColorHint="@color/text_muted"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/etSignUpPassword"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_search_box"
+                android:hint="Create a secure password (min 6 chars)"
+                android:inputType="textPassword"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:textColor="@color/white"
+                android:textColorHint="@color/text_muted"
+                android:textSize="13sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnVerifyAndRegister"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="16dp"
+                android:text="Verify Code &amp; Create Account"
+                android:textAllCaps="false"
+                android:textSize="14sp"
+                app:cornerRadius="10dp"
+                app:backgroundTint="@color/teal_accent"
+                android:textColor="@color/surface_dark" />
+
+            <TextView
+                android:id="@+id/btnBackToStep1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="12dp"
+                android:text="Change Email Address"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp"
+                android:clickable="true"
+                android:focusable="true" />
+        </LinearLayout>
+
+        <!-- Feedback & Error Message -->
+        <TextView
+            android:id="@+id/tvAuthError"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="#F87171"
+            android:textSize="12sp"
+            android:visibility="gone"
+            tools:text="Incorrect password or invalid code" />
+
+        <ProgressBar
+            android:id="@+id/pbAuthLoading"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="12dp"
+            android:indeterminateTint="@color/teal_accent"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+    <!-- 2. LOGGED IN PROFILE VIEW -->
+    <LinearLayout
+        android:id="@+id/layoutProfileView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- User Info Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tvAvatarInitial"
+                android:layout_width="54dp"
+                android:layout_height="54dp"
+                android:background="@drawable/bg_avatar_circle"
+                android:gravity="center"
+                android:textColor="@color/teal_accent"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                tools:text="R" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="14dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvProfileName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/white"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    tools:text="Rahul Sharma" />
+
+                <TextView
+                    android:id="@+id/tvProfileEmail"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12.5sp"
+                    tools:text="rahul.sharma@gmail.com" />
+
+                <TextView
+                    android:id="@+id/tvProfileExamBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_date_chip"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingTop="3dp"
+                    android:paddingBottom="3dp"
+                    android:textColor="@color/teal_accent"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    tools:text="UPSC Civil Services Aspirant" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Cloud Stats Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:background="@drawable/bg_search_box"
+            android:padding="16dp"
+            android:orientation="horizontal">
+
+            <!-- Streak -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvProfileStreak"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#FB923C"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    tools:text="7 Days" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Reading Streak"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="#334155" />
+
+            <!-- Total Read -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvProfileTotalRead"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/teal_accent"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    tools:text="42" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Articles Read"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="#334155" />
+
+            <!-- Bookmarks -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvProfileBookmarks"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/white"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    tools:text="14" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Bookmarks"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Sync Now Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnManualSync"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="20dp"
+            android:text="Sync Progress Now"
+            android:textAllCaps="false"
+            android:textSize="13.5sp"
+            app:icon="@drawable/ic_recall"
+            app:iconTint="@color/surface_dark"
+            app:cornerRadius="10dp"
+            app:backgroundTint="@color/teal_accent"
+            android:textColor="@color/surface_dark" />
+
+        <!-- Log Out Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnLogout"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="10dp"
+            android:text="Log Out"
+            android:textAllCaps="false"
+            android:textSize="13sp"
+            app:cornerRadius="10dp"
+            android:textColor="#F87171"
+            app:strokeColor="#F87171" />
+    </LinearLayout>
+
+</LinearLayout>

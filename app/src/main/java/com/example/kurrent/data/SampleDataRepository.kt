@@ -333,4 +333,33 @@ object SampleDataRepository {
         }
         return false
     }
+
+    /**
+     * Syncs current bookmarks and read articles with the cloud backend if authenticated.
+     */
+    suspend fun syncUserCloudProgress(readArticleIds: List<String> = emptyList()): com.example.kurrent.model.UserStats? {
+        val token = AuthManager.getAuthToken() ?: return null
+        val bookmarkedIds = activeBriefing.articles.filter { it.isBookmarked }.map { it.id }
+        val req = com.example.kurrent.model.SyncProgressRequest(
+            currentDate = activeBriefing.date,
+            readArticleIds = readArticleIds,
+            bookmarkedArticleIds = bookmarkedIds
+        )
+        val res = ApiClient.syncProgress(req, token)
+        if (res.isSuccess) {
+            val stats = res.getOrNull()?.stats
+            if (stats != null) {
+                AuthManager.saveStats(stats)
+                // Apply cloud bookmarks if any
+                val bmSet = stats.cloudBookmarks.toSet()
+                for (a in activeBriefing.articles) {
+                    if (bmSet.contains(a.id)) {
+                        a.isBookmarked = true
+                    }
+                }
+            }
+            return stats
+        }
+        return null
+    }
 }
