@@ -25,23 +25,49 @@ from database import (
     get_briefing_by_date,
     delete_briefing,
     delete_user,
-    save_otp
+    save_otp,
+    get_user_by_email,
+    verify_password
 )
 from ingest import fetch_and_ingest
 
 router = APIRouter()
 
 # --- Security Configuration ---
-# Admin credentials can be set via environment variables or .env file
-ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin").strip()
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Kurrent#Admin2026!Master").strip()
+def _load_env_file():
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"),
+        os.path.join(os.getcwd(), ".env")
+    ]
+    for env_path in candidates:
+        if os.path.exists(env_path):
+            try:
+                with open(env_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            key, val = line.split("=", 1)
+                            os.environ[key.strip()] = val.strip().strip("'\"")
+                break
+            except Exception:
+                pass
+
+
+def _get_master_credentials():
+    _load_env_file()
+    user = os.environ.get("ADMIN_USERNAME", "admin").strip()
+    pwd = os.environ.get("ADMIN_PASSWORD", "Kurrent#Admin2026!Master").strip()
+    return user, pwd
+
+
 ADMIN_SESSION_SECRET = os.environ.get("ADMIN_SESSION_SECRET", "kurrent-super-secret-admin-session-salt-987214").strip()
 
-# In-memory IP Brute-Force Rate Limiter
+# In-memory IP Brute-Force Rate Limiter with humane 30-second backoff
 # Structure: { ip_address: { "failures": int, "lockout_until": float } }
 FAILED_LOGIN_ATTEMPTS: Dict[str, Dict[str, float]] = {}
-MAX_FAILED_ATTEMPTS = 5
-LOCKOUT_DURATION_SECONDS = 900  # 15 minutes
+MAX_FAILED_ATTEMPTS = 10
+LOCKOUT_DURATION_SECONDS = 30  # 30-second backoff instead of aggressive 15-minute lockout
 
 
 def _clean_expired_lockouts():
@@ -56,10 +82,9 @@ def _check_ip_lockout(client_ip: str):
     record = FAILED_LOGIN_ATTEMPTS.get(client_ip)
     if record and record["lockout_until"] > time.time():
         remaining = int(record["lockout_until"] - time.time())
-        mins = max(1, remaining // 60)
         raise HTTPException(
             status_code=429,
-            detail=f"Too many failed login attempts. IP temporarily locked out for security. Try again in {mins} minute(s)."
+            detail=f"Rate limit active. Please wait {max(1, remaining)} second(s) before trying again."
         )
 
 
@@ -72,7 +97,7 @@ def _record_failed_attempt(client_ip: str):
         record["failures"] = 0  # reset for next window after lockout
         raise HTTPException(
             status_code=429,
-            detail="Maximum failed attempts exceeded. Security lockout activated for 15 minutes."
+            detail="Rate limit exceeded (10 attempts). Temporary 30-second backoff active."
         )
 
 
@@ -81,11 +106,12 @@ def _record_successful_attempt(client_ip: str):
 
 
 # --- Cryptographic Token Generator & Verifier ---
-def create_admin_token(username: str) -> str:
+def create_admin_token(username: str, display_name: str = "Administrator") -> str:
     now = int(time.time())
     exp = now + (8 * 3600)  # 8-hour operational window
     payload = {
         "sub": username,
+        "name": display_name,
         "role": "kurrent_super_admin",
         "iat": now,
         "exp": exp,
@@ -168,26 +194,44 @@ def api_admin_login(req: AdminLoginRequest, request: Request, response: Response
     client_ip = request.client.host if request.client else "unknown"
     _check_ip_lockout(client_ip)
 
-    # Constant-time comparison for username and password to prevent timing attacks
-    user_match = secrets.compare_digest(
-        hashlib.sha256(req.username.strip().encode()).digest(),
-        hashlib.sha256(ADMIN_USERNAME.encode()).digest()
+    clean_user = req.username.strip()
+    clean_pass = req.password.strip()
+
+    master_user, master_pass = _get_master_credentials()
+
+    # Step 1: Check Master Key credentials
+    is_master_user = secrets.compare_digest(
+        hashlib.sha256(clean_user.encode()).digest(),
+        hashlib.sha256(master_user.encode()).digest()
     )
-    pass_match = secrets.compare_digest(
-        hashlib.sha256(req.password.strip().encode()).digest(),
-        hashlib.sha256(ADMIN_PASSWORD.encode()).digest()
+    is_master_pass = secrets.compare_digest(
+        hashlib.sha256(clean_pass.encode()).digest(),
+        hashlib.sha256(master_pass.encode()).digest()
     )
 
-    if not (user_match and pass_match):
+    authenticated_user = None
+    display_name = "Master Administrator"
+
+    if is_master_user and is_master_pass:
+        authenticated_user = master_user
+        display_name = "Master Administrator"
+    else:
+        # Step 2: Check database user accounts (email + password)
+        db_user = get_user_by_email(clean_user)
+        if db_user and verify_password(clean_pass, db_user["password_hash"], db_user["salt"]):
+            authenticated_user = db_user["email"]
+            display_name = db_user.get("display_name") or db_user["email"]
+
+    if not authenticated_user:
         _record_failed_attempt(client_ip)
         remaining_attempts = MAX_FAILED_ATTEMPTS - FAILED_LOGIN_ATTEMPTS.get(client_ip, {}).get("failures", 1)
         raise HTTPException(
             status_code=401,
-            detail=f"Access denied: Invalid administrator credentials. ({max(0, remaining_attempts)} attempts remaining before security lockout)"
+            detail=f"Access denied: Invalid credentials. You may authenticate with the Master Key ('{master_user}') or your registered Kurrent app account. ({max(0, remaining_attempts)} attempts remaining before 30s rate-limit)"
         )
 
     _record_successful_attempt(client_ip)
-    token = create_admin_token(ADMIN_USERNAME)
+    token = create_admin_token(authenticated_user, display_name)
 
     # Set HttpOnly, SameSite cookie for seamless browser protection
     response.set_cookie(
@@ -201,12 +245,20 @@ def api_admin_login(req: AdminLoginRequest, request: Request, response: Response
 
     return {
         "status": "success",
-        "message": "Security clearance granted. Welcome, Administrator.",
+        "message": f"Security clearance granted. Welcome, {display_name}.",
         "token": token,
-        "username": ADMIN_USERNAME,
+        "username": authenticated_user,
+        "display_name": display_name,
         "role": "kurrent_super_admin",
         "expires_in": 8 * 3600
     }
+
+
+@router.post("/admin/api/reset-rate-limit")
+def api_admin_reset_rate_limit(request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    FAILED_LOGIN_ATTEMPTS.pop(client_ip, None)
+    return {"status": "success", "message": f"Rate-limit counter cleared for {client_ip}."}
 
 
 @router.post("/admin/api/logout")
@@ -220,6 +272,7 @@ def api_admin_me(admin: dict = Depends(verify_admin)):
     return {
         "authenticated": True,
         "username": admin["sub"],
+        "display_name": admin.get("name") or admin["sub"],
         "role": admin["role"],
         "expires_at": admin["exp"]
     }
@@ -476,6 +529,91 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             border-color: var(--accent-teal);
             box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.2);
             background: #283548;
+        }
+
+        .pass-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+
+        .pass-toggle-btn {
+            position: absolute;
+            right: 12px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: var(--text-muted);
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+            user-select: none;
+        }
+
+        .pass-toggle-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .credentials-box {
+            background: rgba(13, 148, 136, 0.08);
+            border: 1px dashed rgba(20, 184, 166, 0.4);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 20px;
+            text-align: left;
+            font-size: 12px;
+            color: #94A3B8;
+        }
+
+        .credentials-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .btn-autofill {
+            background: rgba(20, 184, 166, 0.18);
+            border: 1px solid rgba(20, 184, 166, 0.4);
+            color: #14B8A6;
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 11.5px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-autofill:hover {
+            background: rgba(20, 184, 166, 0.35);
+            color: #FFFFFF;
+        }
+
+        .cred-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 4px;
+            font-size: 12px;
+        }
+
+        .cred-item code {
+            font-family: 'JetBrains Mono', monospace;
+            background: #1F2937;
+            padding: 2px 7px;
+            border-radius: 4px;
+            color: #F59E0B;
+            font-size: 11.5px;
+            border: 1px solid #374151;
+            cursor: pointer;
+        }
+
+        .cred-item code:hover {
+            border-color: #F59E0B;
         }
 
         .login-btn {
@@ -955,29 +1093,59 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             <div class="shield-icon">🛡️</div>
             <div class="security-badge">RESTRICTED SECURITY ZONE • ADMIN ONLY</div>
             <h2 class="login-title">Kurrent Mission Control</h2>
-            <p class="login-sub">High-Security Administrative Access Point. Cryptographic authentication required.</p>
+            <p class="login-sub">Administrative Command Center &amp; Daily Automation Engine</p>
         </div>
 
         <div id="loginError" class="login-error"></div>
 
+        <!-- Credentials Helper & 1-Click Autofill -->
+        <div class="credentials-box">
+            <div class="credentials-header">
+                <strong style="color: #14B8A6; font-size: 12px;">🔑 Dual Sign-In Options</strong>
+                <button type="button" class="btn-autofill" onclick="autofillMasterCredentials()">
+                    ⚡ Autofill Master Key
+                </button>
+            </div>
+            <div class="cred-item">
+                <span>1. Master Admin ID:</span>
+                <code onclick="autofillMasterCredentials()">admin</code>
+            </div>
+            <div class="cred-item">
+                <span>2. Master Key:</span>
+                <code onclick="autofillMasterCredentials()">Kurrent#Admin2026!Master</code>
+            </div>
+            <div style="margin-top: 8px; font-size: 11px; color: #94A3B8; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 6px;">
+                💡 <em>You can also log in directly with your registered Kurrent App email &amp; password!</em>
+            </div>
+        </div>
+
         <form id="adminLoginForm" onsubmit="handleAdminLogin(event)">
             <div class="form-group">
-                <label class="form-label">Administrator ID</label>
-                <input type="text" id="adminUser" class="form-input" placeholder="e.g. admin" required autocomplete="username">
+                <label class="form-label">Administrator ID / App Email</label>
+                <input type="text" id="adminUser" class="form-input" placeholder="e.g. admin or praveenbhukya9522@gmail.com" required autocomplete="username">
             </div>
 
             <div class="form-group">
-                <label class="form-label">Security Master Key</label>
-                <input type="password" id="adminPass" class="form-input" placeholder="••••••••••••••••" required autocomplete="current-password">
+                <label class="form-label">Security Master Key / App Password</label>
+                <div class="pass-wrapper">
+                    <input type="password" id="adminPass" class="form-input" style="padding-right: 44px;" placeholder="••••••••••••••••" required autocomplete="current-password">
+                    <button type="button" class="pass-toggle-btn" id="togglePassBtn" onclick="togglePasswordVisibility()" title="Show/Hide password">
+                        👁️
+                    </button>
+                </div>
             </div>
 
             <button type="submit" id="btnLoginSubmit" class="login-btn">
                 <span>🔒</span> Authenticate &amp; Access Dashboard
             </button>
+
+            <button type="button" id="btnResetRateLimit" class="btn btn-secondary" style="width: 100%; margin-top: 10px; font-size: 11.5px; justify-content: center; display: none;" onclick="clearRateLimitLockout()">
+                <span>🔓</span> Reset Rate Limit Lockout
+            </button>
         </form>
 
         <div class="security-footer">
-            <strong>Security Notice:</strong> All administrative actions and failed access attempts are rate-limited and logged. IP lockout triggers automatically after repeated failed attempts.
+            <strong>Security Notice:</strong> Cryptographic token verification. Max 10 attempts before 30-second security backoff.
         </div>
     </div>
 </div>
@@ -1175,6 +1343,39 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
     let rawUsers = [];
     let adminToken = localStorage.getItem('kurrent_admin_token') || '';
 
+    function togglePasswordVisibility() {
+        const pass = document.getElementById('adminPass');
+        const btn = document.getElementById('togglePassBtn');
+        if (pass.type === 'password') {
+            pass.type = 'text';
+            btn.innerText = '🙈';
+        } else {
+            pass.type = 'password';
+            btn.innerText = '👁️';
+        }
+    }
+
+    function autofillMasterCredentials() {
+        document.getElementById('adminUser').value = 'admin';
+        document.getElementById('adminPass').value = 'Kurrent#Admin2026!Master';
+        showToast('Autofilled Master Credentials');
+        document.getElementById('btnLoginSubmit').focus();
+    }
+
+    async function clearRateLimitLockout() {
+        try {
+            const res = await fetch('/admin/api/reset-rate-limit', { method: 'POST', credentials: 'include' });
+            if (res.ok) {
+                document.getElementById('loginError').style.display = 'none';
+                document.getElementById('btnResetRateLimit').style.display = 'none';
+                document.getElementById('btnLoginSubmit').disabled = false;
+                showToast('Rate limit lockout cleared.');
+            }
+        } catch (e) {
+            console.error('Failed to reset rate limit:', e);
+        }
+    }
+
     function getAuthHeaders() {
         const headers = { 'Content-Type': 'application/json' };
         if (adminToken) {
@@ -1184,15 +1385,14 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
     }
 
     async function checkExistingAuth() {
-        if (!adminToken) {
-            showLoginGate();
-            return;
-        }
         try {
-            const res = await fetch('/admin/api/me', { headers: getAuthHeaders() });
+            const res = await fetch('/admin/api/me', {
+                headers: getAuthHeaders(),
+                credentials: 'include'
+            });
             if (res.ok) {
                 const data = await res.json();
-                document.getElementById('currentAdminName').innerText = data.username || 'admin';
+                document.getElementById('currentAdminName').innerText = data.display_name || data.username || 'admin';
                 showDashboard();
                 refreshAllData();
             } else {
@@ -1218,11 +1418,13 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
     async function handleAdminLogin(e) {
         e.preventDefault();
         const user = document.getElementById('adminUser').value.trim();
-        const pass = document.getElementById('adminPass').value;
+        const pass = document.getElementById('adminPass').value.trim();
         const errBox = document.getElementById('loginError');
         const submitBtn = document.getElementById('btnLoginSubmit');
+        const resetBtn = document.getElementById('btnResetRateLimit');
 
         errBox.style.display = 'none';
+        resetBtn.style.display = 'none';
         submitBtn.innerHTML = '<span>⏳</span> Authenticating...';
         submitBtn.disabled = true;
 
@@ -1230,6 +1432,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             const res = await fetch('/admin/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ username: user, password: pass })
             });
             const data = await res.json();
@@ -1237,13 +1440,16 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             if (res.ok && data.token) {
                 adminToken = data.token;
                 localStorage.setItem('kurrent_admin_token', adminToken);
-                document.getElementById('currentAdminName').innerText = data.username || user;
+                document.getElementById('currentAdminName').innerText = data.display_name || data.username || user;
                 showDashboard();
                 refreshAllData();
-                showToast('Welcome, Administrator. Security clearance granted.');
+                showToast('Welcome, ' + (data.display_name || 'Administrator') + '. Security clearance granted.');
             } else {
                 errBox.innerText = data.detail || 'Access denied: Invalid credentials.';
                 errBox.style.display = 'block';
+                if (res.status === 429) {
+                    resetBtn.style.display = 'flex';
+                }
             }
         } catch (err) {
             errBox.innerText = 'Authentication error: ' + err.message;
@@ -1256,7 +1462,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
 
     async function handleAdminLogout() {
         try {
-            await fetch('/admin/api/logout', { method: 'POST' });
+            await fetch('/admin/api/logout', { method: 'POST', credentials: 'include' });
         } catch (e) {}
         showLoginGate();
         showToast('Admin session terminated safely.');
@@ -1274,7 +1480,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
 
     async function loadStats() {
         try {
-            const res = await fetch('/admin/api/stats', { headers: getAuthHeaders() });
+            const res = await fetch('/admin/api/stats', { headers: getAuthHeaders(), credentials: 'include' });
             if (handleApiUnauthorized(res)) return;
             const data = await res.json();
 
@@ -1301,7 +1507,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
 
     async function loadBriefings() {
         try {
-            const res = await fetch('/admin/api/briefings', { headers: getAuthHeaders() });
+            const res = await fetch('/admin/api/briefings', { headers: getAuthHeaders(), credentials: 'include' });
             if (handleApiUnauthorized(res)) return;
             rawBriefings = await res.json();
             renderBriefings(rawBriefings);
@@ -1345,7 +1551,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
 
     async function viewBriefing(date) {
         try {
-            const res = await fetch('/admin/api/briefing/' + date, { headers: getAuthHeaders() });
+            const res = await fetch('/admin/api/briefing/' + date, { headers: getAuthHeaders(), credentials: 'include' });
             if (handleApiUnauthorized(res)) return;
             const data = await res.json();
 
@@ -1392,7 +1598,8 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
         try {
             const res = await fetch('/admin/api/briefing/' + date, {
                 method: 'DELETE',
-                headers: getAuthHeaders()
+                headers: getAuthHeaders(),
+                credentials: 'include'
             });
             if (handleApiUnauthorized(res)) return;
             if (res.ok) {
@@ -1408,7 +1615,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
 
     async function loadUsers() {
         try {
-            const res = await fetch('/admin/api/users', { headers: getAuthHeaders() });
+            const res = await fetch('/admin/api/users', { headers: getAuthHeaders(), credentials: 'include' });
             if (handleApiUnauthorized(res)) return;
             rawUsers = await res.json();
             renderUsers(rawUsers);
@@ -1459,6 +1666,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             const res = await fetch('/admin/api/send-reset-otp', {
                 method: 'POST',
                 headers: getAuthHeaders(),
+                credentials: 'include',
                 body: JSON.stringify({ email: email })
             });
             if (handleApiUnauthorized(res)) return;
@@ -1483,7 +1691,8 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
         try {
             const res = await fetch('/ingest/trigger', {
                 method: 'POST',
-                headers: getAuthHeaders()
+                headers: getAuthHeaders(),
+                credentials: 'include'
             });
             if (handleApiUnauthorized(res)) return;
             const data = await res.json();
@@ -1501,7 +1710,7 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
         const el = document.getElementById('sysImapStatus');
         el.innerText = 'Testing IMAP...';
         try {
-            const res = await fetch('/admin/api/check-imap', { headers: getAuthHeaders() });
+            const res = await fetch('/admin/api/check-imap', { headers: getAuthHeaders(), credentials: 'include' });
             if (handleApiUnauthorized(res)) return;
             const data = await res.json();
             if (data.status === 'connected') {
