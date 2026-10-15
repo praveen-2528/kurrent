@@ -623,6 +623,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        audioNewsManager.release()
+        if (::audioNewsManager.isInitialized) {
+            audioNewsManager.release()
+        }
     }
 }
