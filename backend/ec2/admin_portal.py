@@ -61,6 +61,12 @@ def _get_master_credentials():
     return user, pwd
 
 
+def _get_admin_emails() -> list:
+    _load_env_file()
+    raw = os.environ.get("ADMIN_EMAILS", "praveenbhukya9522@gmail.com").strip()
+    return [e.strip().lower() for e in raw.split(",") if e.strip()]
+
+
 ADMIN_SESSION_SECRET = os.environ.get("ADMIN_SESSION_SECRET", "kurrent-super-secret-admin-session-salt-987214").strip()
 
 # In-memory IP Brute-Force Rate Limiter with humane 30-second backoff
@@ -199,7 +205,7 @@ def api_admin_login(req: AdminLoginRequest, request: Request, response: Response
 
     master_user, master_pass = _get_master_credentials()
 
-    # Step 1: Check Master Key credentials
+    # Step 1: Check Master Key credentials (constant-time digest comparison)
     is_master_user = secrets.compare_digest(
         hashlib.sha256(clean_user.encode()).digest(),
         hashlib.sha256(master_user.encode()).digest()
@@ -216,18 +222,20 @@ def api_admin_login(req: AdminLoginRequest, request: Request, response: Response
         authenticated_user = master_user
         display_name = "Master Administrator"
     else:
-        # Step 2: Check database user accounts (email + password)
-        db_user = get_user_by_email(clean_user)
-        if db_user and verify_password(clean_pass, db_user["password_hash"], db_user["salt"]):
-            authenticated_user = db_user["email"]
-            display_name = db_user.get("display_name") or db_user["email"]
+        # Step 2: Check database user accounts ONLY if authorized in ADMIN_EMAILS
+        allowed_admin_emails = _get_admin_emails()
+        if clean_user.lower() in allowed_admin_emails:
+            db_user = get_user_by_email(clean_user.lower())
+            if db_user and verify_password(clean_pass, db_user["password_hash"], db_user["salt"]):
+                authenticated_user = db_user["email"]
+                display_name = db_user.get("display_name") or db_user["email"]
 
     if not authenticated_user:
         _record_failed_attempt(client_ip)
         remaining_attempts = MAX_FAILED_ATTEMPTS - FAILED_LOGIN_ATTEMPTS.get(client_ip, {}).get("failures", 1)
         raise HTTPException(
             status_code=401,
-            detail=f"Access denied: Invalid credentials. You may authenticate with the Master Key ('{master_user}') or your registered Kurrent app account. ({max(0, remaining_attempts)} attempts remaining before 30s rate-limit)"
+            detail=f"Access denied: Invalid administrator credentials. ({max(0, remaining_attempts)} attempts remaining before 30s security backoff)"
         )
 
     _record_successful_attempt(client_ip)
@@ -252,13 +260,6 @@ def api_admin_login(req: AdminLoginRequest, request: Request, response: Response
         "role": "kurrent_super_admin",
         "expires_in": 8 * 3600
     }
-
-
-@router.post("/admin/api/reset-rate-limit")
-def api_admin_reset_rate_limit(request: Request):
-    client_ip = request.client.host if request.client else "unknown"
-    FAILED_LOGIN_ATTEMPTS.pop(client_ip, None)
-    return {"status": "success", "message": f"Rate-limit counter cleared for {client_ip}."}
 
 
 @router.post("/admin/api/logout")
@@ -556,64 +557,6 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
 
         .pass-toggle-btn:hover {
             color: var(--text-primary);
-        }
-
-        .credentials-box {
-            background: rgba(13, 148, 136, 0.08);
-            border: 1px dashed rgba(20, 184, 166, 0.4);
-            border-radius: 12px;
-            padding: 14px 16px;
-            margin-bottom: 20px;
-            text-align: left;
-            font-size: 12px;
-            color: #94A3B8;
-        }
-
-        .credentials-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
-        .btn-autofill {
-            background: rgba(20, 184, 166, 0.18);
-            border: 1px solid rgba(20, 184, 166, 0.4);
-            color: #14B8A6;
-            border-radius: 6px;
-            padding: 4px 10px;
-            font-size: 11.5px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-autofill:hover {
-            background: rgba(20, 184, 166, 0.35);
-            color: #FFFFFF;
-        }
-
-        .cred-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-top: 4px;
-            font-size: 12px;
-        }
-
-        .cred-item code {
-            font-family: 'JetBrains Mono', monospace;
-            background: #1F2937;
-            padding: 2px 7px;
-            border-radius: 4px;
-            color: #F59E0B;
-            font-size: 11.5px;
-            border: 1px solid #374151;
-            cursor: pointer;
-        }
-
-        .cred-item code:hover {
-            border-color: #F59E0B;
         }
 
         .login-btn {
@@ -1098,35 +1041,14 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
 
         <div id="loginError" class="login-error"></div>
 
-        <!-- Credentials Helper & 1-Click Autofill -->
-        <div class="credentials-box">
-            <div class="credentials-header">
-                <strong style="color: #14B8A6; font-size: 12px;">🔑 Dual Sign-In Options</strong>
-                <button type="button" class="btn-autofill" onclick="autofillMasterCredentials()">
-                    ⚡ Autofill Master Key
-                </button>
-            </div>
-            <div class="cred-item">
-                <span>1. Master Admin ID:</span>
-                <code onclick="autofillMasterCredentials()">admin</code>
-            </div>
-            <div class="cred-item">
-                <span>2. Master Key:</span>
-                <code onclick="autofillMasterCredentials()">Kurrent#Admin2026!Master</code>
-            </div>
-            <div style="margin-top: 8px; font-size: 11px; color: #94A3B8; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 6px;">
-                💡 <em>You can also log in directly with your registered Kurrent App email &amp; password!</em>
-            </div>
-        </div>
-
         <form id="adminLoginForm" onsubmit="handleAdminLogin(event)">
             <div class="form-group">
-                <label class="form-label">Administrator ID / App Email</label>
-                <input type="text" id="adminUser" class="form-input" placeholder="e.g. admin or praveenbhukya9522@gmail.com" required autocomplete="username">
+                <label class="form-label">Administrator ID / Authorized Email</label>
+                <input type="text" id="adminUser" class="form-input" placeholder="e.g. admin or authorized admin email" required autocomplete="username">
             </div>
 
             <div class="form-group">
-                <label class="form-label">Security Master Key / App Password</label>
+                <label class="form-label">Security Master Key / Password</label>
                 <div class="pass-wrapper">
                     <input type="password" id="adminPass" class="form-input" style="padding-right: 44px;" placeholder="••••••••••••••••" required autocomplete="current-password">
                     <button type="button" class="pass-toggle-btn" id="togglePassBtn" onclick="togglePasswordVisibility()" title="Show/Hide password">
@@ -1138,14 +1060,10 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             <button type="submit" id="btnLoginSubmit" class="login-btn">
                 <span>🔒</span> Authenticate &amp; Access Dashboard
             </button>
-
-            <button type="button" id="btnResetRateLimit" class="btn btn-secondary" style="width: 100%; margin-top: 10px; font-size: 11.5px; justify-content: center; display: none;" onclick="clearRateLimitLockout()">
-                <span>🔓</span> Reset Rate Limit Lockout
-            </button>
         </form>
 
         <div class="security-footer">
-            <strong>Security Notice:</strong> Cryptographic token verification. Max 10 attempts before 30-second security backoff.
+            <strong>Security Notice:</strong> Cryptographic token verification. Restricted to authorized administrators only. Access attempts are monitored and rate-limited.
         </div>
     </div>
 </div>
@@ -1355,27 +1273,6 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
         }
     }
 
-    function autofillMasterCredentials() {
-        document.getElementById('adminUser').value = 'admin';
-        document.getElementById('adminPass').value = 'Kurrent#Admin2026!Master';
-        showToast('Autofilled Master Credentials');
-        document.getElementById('btnLoginSubmit').focus();
-    }
-
-    async function clearRateLimitLockout() {
-        try {
-            const res = await fetch('/admin/api/reset-rate-limit', { method: 'POST', credentials: 'include' });
-            if (res.ok) {
-                document.getElementById('loginError').style.display = 'none';
-                document.getElementById('btnResetRateLimit').style.display = 'none';
-                document.getElementById('btnLoginSubmit').disabled = false;
-                showToast('Rate limit lockout cleared.');
-            }
-        } catch (e) {
-            console.error('Failed to reset rate limit:', e);
-        }
-    }
-
     function getAuthHeaders() {
         const headers = { 'Content-Type': 'application/json' };
         if (adminToken) {
@@ -1421,10 +1318,8 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
         const pass = document.getElementById('adminPass').value.trim();
         const errBox = document.getElementById('loginError');
         const submitBtn = document.getElementById('btnLoginSubmit');
-        const resetBtn = document.getElementById('btnResetRateLimit');
 
         errBox.style.display = 'none';
-        resetBtn.style.display = 'none';
         submitBtn.innerHTML = '<span>⏳</span> Authenticating...';
         submitBtn.disabled = true;
 
@@ -1447,9 +1342,6 @@ ADMIN_PORTAL_HTML = """<!DOCTYPE html>
             } else {
                 errBox.innerText = data.detail || 'Access denied: Invalid credentials.';
                 errBox.style.display = 'block';
-                if (res.status === 429) {
-                    resetBtn.style.display = 'flex';
-                }
             }
         } catch (err) {
             errBox.innerText = 'Authentication error: ' + err.message;
