@@ -14,39 +14,63 @@ import android.view.animation.TranslateAnimation
 object UIInteractions {
 
     /**
-     * 3D Y-Axis Flip Animation for Active Recall (Front to Back or Back to Front).
-     * Duration: 220ms total (fast, crisp, and interruptible).
+     * Organic 3D Y-Axis Flip Animation for Spaced Repetition & Active Recall.
+     * Implements:
+     * 1. 8000dp camera perspective to prevent distortion.
+     * 2. Subtle 1.04x lift toward the camera at mid-point.
+     * 3. Apex haptic tick at 90° transition.
+     * 4. Natural acceleration into flip, smooth deceleration into landing.
      */
     fun flipCard(context: Context, frontView: View, backView: View, toBack: Boolean) {
-        val distance = 8000
-        val scale = context.resources.displayMetrics.density * distance
-        frontView.cameraDistance = scale
-        backView.cameraDistance = scale
+        val density = context.resources.displayMetrics.density
+        val cameraScale = 8000f * density
+        frontView.cameraDistance = cameraScale
+        backView.cameraDistance = cameraScale
 
         val visibleView = if (toBack) frontView else backView
         val invisibleView = if (toBack) backView else frontView
 
-        // 1. Flip out currently visible view (0 to 90 degrees)
-        val flipOut = ObjectAnimator.ofFloat(visibleView, "rotationY", 0f, if (toBack) 90f else -90f).apply {
-            duration = 110
-            interpolator = AccelerateDecelerateInterpolator()
+        // Phase 1: Flip out from 0° to 90° with a subtle lift towards user (1.0x -> 1.04x)
+        val targetFlipOutAngle = if (toBack) 90f else -90f
+        val rotOut = ObjectAnimator.ofFloat(visibleView, "rotationY", 0f, targetFlipOutAngle)
+        val scaleXOut = ObjectAnimator.ofFloat(visibleView, "scaleX", 1.0f, 1.04f)
+        val scaleYOut = ObjectAnimator.ofFloat(visibleView, "scaleY", 1.0f, 1.04f)
+
+        val flipOutSet = android.animation.AnimatorSet().apply {
+            playTogether(rotOut, scaleXOut, scaleYOut)
+            duration = 150L
+            interpolator = android.view.animation.AccelerateInterpolator(1.4f)
         }
 
-        // 2. Flip in incoming view (-90 to 0 degrees)
-        val flipIn = ObjectAnimator.ofFloat(invisibleView, "rotationY", if (toBack) -90f else 90f, 0f).apply {
-            duration = 110
-            interpolator = AccelerateDecelerateInterpolator()
+        // Phase 2: Flip in from 90° to 0° settling back down (1.04x -> 1.0x)
+        val startFlipInAngle = if (toBack) -90f else 90f
+        invisibleView.rotationY = startFlipInAngle
+        invisibleView.scaleX = 1.04f
+        invisibleView.scaleY = 1.04f
+
+        val rotIn = ObjectAnimator.ofFloat(invisibleView, "rotationY", startFlipInAngle, 0f)
+        val scaleXIn = ObjectAnimator.ofFloat(invisibleView, "scaleX", 1.04f, 1.0f)
+        val scaleYIn = ObjectAnimator.ofFloat(invisibleView, "scaleY", 1.04f, 1.0f)
+
+        val flipInSet = android.animation.AnimatorSet().apply {
+            playTogether(rotIn, scaleXIn, scaleYIn)
+            duration = 170L
+            interpolator = android.view.animation.DecelerateInterpolator(1.4f)
         }
 
-        flipOut.addListener(object : AnimatorListenerAdapter() {
+        flipOutSet.addListener(object : AnimatorListenerAdapter() {
             override fun onAnimationEnd(animation: Animator) {
                 visibleView.visibility = View.GONE
                 invisibleView.visibility = View.VISIBLE
-                flipIn.start()
+
+                // Apex haptic tick on 90° flip point
+                invisibleView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+
+                flipInSet.start()
             }
         })
 
-        flipOut.start()
+        flipOutSet.start()
     }
 
     /**

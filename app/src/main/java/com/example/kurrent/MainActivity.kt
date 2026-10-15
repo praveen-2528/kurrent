@@ -310,10 +310,12 @@ class MainActivity : AppCompatActivity() {
                     binding.btnPlayerPlayPause.setImageResource(R.drawable.ic_pause)
                     binding.tvAudioDigestText.text = "Playing"
                     binding.ivAudioDigestIcon.setImageResource(R.drawable.ic_pause)
+                    binding.waveformPlayer.setPlaying(true)
                 } else {
                     binding.layoutMiniAudioPlayer.visibility = View.GONE
                     binding.tvAudioDigestText.text = "Listen"
                     binding.ivAudioDigestIcon.setImageResource(R.drawable.ic_headphones)
+                    binding.waveformPlayer.setPlaying(false)
                     articleAdapter.setCurrentlySpeaking(null)
                 }
             }
@@ -456,16 +458,63 @@ class MainActivity : AppCompatActivity() {
         binding.progressDailyRing.setProgressCompat(percent, true)
         binding.tvDailyProgress.text = "$readCount/$totalCount Read"
 
-        if (percent == 100) {
-            binding.ivStreakFlame.animate()
-                .scaleX(1.35f)
-                .scaleY(1.35f)
-                .setDuration(220)
-                .withEndAction {
-                    binding.ivStreakFlame.animate().scaleX(1.0f).scaleY(1.0f).setDuration(200).start()
-                }
-                .start()
+        if (percent == 100 && readCount > 0) {
+            triggerStreakIgnitionCelebration()
         }
+    }
+
+    /**
+     * Streak Ignition Celebration:
+     * 1. Haptic confirmation pulse.
+     * 2. 60ms anticipation shrink (0.85x).
+     * 3. Explosive 1.38x flame expansion with an ambient amber dissipating glow.
+     * 4. Decelerating settle back to 1.0x.
+     */
+    private fun triggerStreakIgnitionCelebration() {
+        // 1. Haptic pulse
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            binding.layoutStreakBadge.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+        } else {
+            binding.layoutStreakBadge.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        }
+
+        // 2. 60ms anticipation shrink (0.85x)
+        binding.ivStreakFlame.animate()
+            .scaleX(0.85f)
+            .scaleY(0.85f)
+            .setDuration(60)
+            .setInterpolator(android.view.animation.AccelerateInterpolator())
+            .withEndAction {
+                // 3. Explosive 1.38x flame expansion with Overshoot
+                binding.ivStreakFlame.animate()
+                    .scaleX(1.38f)
+                    .scaleY(1.38f)
+                    .setDuration(140)
+                    .setInterpolator(android.view.animation.OvershootInterpolator(2.4f))
+                    .withEndAction {
+                        // Settle back to 1.0x
+                        binding.ivStreakFlame.animate()
+                            .scaleX(1.0f)
+                            .scaleY(1.0f)
+                            .setDuration(110)
+                            .setInterpolator(android.view.animation.DecelerateInterpolator())
+                            .start()
+                    }
+                    .start()
+
+                // Ambient amber dissipating glow ring expansion
+                binding.viewStreakGlow.alpha = 0.85f
+                binding.viewStreakGlow.scaleX = 1.0f
+                binding.viewStreakGlow.scaleY = 1.0f
+                binding.viewStreakGlow.animate()
+                    .scaleX(2.5f)
+                    .scaleY(2.5f)
+                    .alpha(0f)
+                    .setDuration(320)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .start()
+            }
+            .start()
     }
 
     private fun setupExamFilters() {
