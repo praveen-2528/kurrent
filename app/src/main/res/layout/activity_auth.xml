@@ -215,11 +215,30 @@
                         android:textColorHint="@color/text_muted"
                         android:textSize="13.5sp" />
 
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="end">
+
+                        <TextView
+                            android:id="@+id/tvForgotPasswordLink"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Forgot password?"
+                            android:textColor="@color/teal_accent"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:padding="4dp"
+                            android:clickable="true"
+                            android:focusable="true" />
+                    </LinearLayout>
+
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnSubmitSignIn"
                         android:layout_width="match_parent"
                         android:layout_height="50dp"
-                        android:layout_marginTop="20dp"
+                        android:layout_marginTop="16dp"
                         android:text="Sign In"
                         android:textAllCaps="false"
                         android:textSize="14.5sp"
@@ -421,6 +440,162 @@
                         android:layout_gravity="center_horizontal"
                         android:layout_marginTop="14dp"
                         android:text="← Edit email address / resend code"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp"
+                        android:padding="6dp" />
+                </LinearLayout>
+
+                <!-- FORM 4: Forgot Password Step 1 (Enter Email) -->
+                <LinearLayout
+                    android:id="@+id/formForgotPasswordStep1"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Reset Password"
+                        android:textColor="@color/white"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Enter your registered email address. We will send a 6-digit OTP code to reset your password."
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp"
+                        android:lineSpacingExtra="2dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:text="Registered Email Address"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etForgotEmail"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_search_box"
+                        android:hint="aspirant@example.com"
+                        android:inputType="textEmailAddress"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:textColor="@color/white"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="13.5sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSendForgotOtp"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:layout_marginTop="18dp"
+                        android:text="Send Reset Code"
+                        android:textAllCaps="false"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="10dp"
+                        app:backgroundTint="@color/indigo_primary"
+                        android:textColor="@color/white" />
+
+                    <TextView
+                        android:id="@+id/btnBackToSignInFromForgot"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginTop="14dp"
+                        android:text="← Remember password? Sign In"
+                        android:textColor="@color/teal_accent"
+                        android:textSize="12.5sp"
+                        android:padding="6dp" />
+                </LinearLayout>
+
+                <!-- FORM 5: Forgot Password Step 2 (Verify OTP & Set New Password) -->
+                <LinearLayout
+                    android:id="@+id/formForgotPasswordStep2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/tvForgotOtpInstruction"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Reset code sent to your email. Enter the code and your new password:"
+                        android:textColor="@color/teal_accent"
+                        android:textSize="12.5sp"
+                        android:lineSpacingExtra="2dp" />
+
+                    <EditText
+                        android:id="@+id/etForgotOtpCode"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/bg_search_box"
+                        android:hint="6-Digit OTP"
+                        android:inputType="number"
+                        android:maxLength="6"
+                        android:gravity="center"
+                        android:letterSpacing="0.4"
+                        android:textColor="@color/white"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="19sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:text="New Password (min 6 characters)"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etForgotNewPassword"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_search_box"
+                        android:hint="Enter new password"
+                        android:inputType="textPassword"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:textColor="@color/white"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="13.5sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSubmitResetPassword"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:layout_marginTop="18dp"
+                        android:text="Reset Password &amp; Sign In"
+                        android:textAllCaps="false"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="10dp"
+                        app:backgroundTint="@color/teal_accent"
+                        android:textColor="@color/surface_dark" />
+
+                    <TextView
+                        android:id="@+id/btnBackToForgotStep1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginTop="14dp"
+                        android:text="← Edit email / resend code"
                         android:textColor="@color/text_muted"
                         android:textSize="12sp"
                         android:padding="6dp" />

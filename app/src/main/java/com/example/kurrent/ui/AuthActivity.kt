@@ -185,6 +185,73 @@ class AuthActivity : AppCompatActivity() {
             binding.formSignUpStep1.visibility = View.VISIBLE
             hideError()
         }
+
+        // --- Forgot Password Flow ---
+        binding.tvForgotPasswordLink.setOnClickListener {
+            val email = binding.etLoginEmail.text?.toString()?.trim().orEmpty()
+            showForgotPasswordStep1(email)
+        }
+
+        binding.btnBackToSignInFromForgot.setOnClickListener {
+            showSignInTab()
+        }
+
+        binding.btnSendForgotOtp.setOnClickListener {
+            val email = binding.etForgotEmail.text?.toString()?.trim().orEmpty()
+            if (email.isBlank() || !email.contains("@")) {
+                showError("Please enter your registered email address.")
+                return@setOnClickListener
+            }
+
+            pendingEmail = email
+            setLoading(true)
+            lifecycleScope.launch {
+                val res = ApiClient.sendOtp(email, "forgot_password")
+                setLoading(false)
+                res.onSuccess {
+                    showForgotPasswordStep2(email)
+                    hideError()
+                    Toast.makeText(this@AuthActivity, "Password reset code sent!", Toast.LENGTH_SHORT).show()
+                }.onFailure { e ->
+                    showError(e.message ?: "Could not send reset code. Please verify your email.")
+                }
+            }
+        }
+
+        binding.btnBackToForgotStep1.setOnClickListener {
+            showForgotPasswordStep1(pendingEmail)
+        }
+
+        binding.btnSubmitResetPassword.setOnClickListener {
+            val otp = binding.etForgotOtpCode.text?.toString()?.trim().orEmpty()
+            val newPass = binding.etForgotNewPassword.text?.toString()?.trim().orEmpty()
+
+            if (otp.length != 6) {
+                showError("Please enter the 6-digit reset code.")
+                return@setOnClickListener
+            }
+            if (newPass.length < 6) {
+                showError("New password must be at least 6 characters.")
+                return@setOnClickListener
+            }
+
+            setLoading(true)
+            lifecycleScope.launch {
+                val res = ApiClient.resetPassword(pendingEmail, otp, newPass)
+                setLoading(false)
+                res.onSuccess { authRes ->
+                    if (!authRes.token.isNullOrBlank() && authRes.user != null) {
+                        AuthManager.saveSession(authRes.token, authRes.user)
+                        Toast.makeText(this@AuthActivity, "Password reset successfully! Welcome back.", Toast.LENGTH_LONG).show()
+                        navigateToMain()
+                    } else {
+                        showError(authRes.message.ifBlank { "Password reset failed." })
+                    }
+                }.onFailure { e ->
+                    showError(e.message ?: "Invalid or expired reset code.")
+                }
+            }
+        }
     }
 
     private fun navigateToMain() {
@@ -205,6 +272,8 @@ class AuthActivity : AppCompatActivity() {
         binding.formSignIn.visibility = View.VISIBLE
         binding.formSignUpStep1.visibility = View.GONE
         binding.formSignUpStep2.visibility = View.GONE
+        binding.formForgotPasswordStep1.visibility = View.GONE
+        binding.formForgotPasswordStep2.visibility = View.GONE
     }
 
     private fun showSignUpTab() {
@@ -218,6 +287,36 @@ class AuthActivity : AppCompatActivity() {
         binding.formSignIn.visibility = View.GONE
         binding.formSignUpStep1.visibility = View.VISIBLE
         binding.formSignUpStep2.visibility = View.GONE
+        binding.formForgotPasswordStep1.visibility = View.GONE
+        binding.formForgotPasswordStep2.visibility = View.GONE
+    }
+
+    private fun showForgotPasswordStep1(prefillEmail: String = "") {
+        hideError()
+        binding.tabSignIn.setTextColor(resources.getColor(R.color.text_muted, null))
+        binding.tabSignIn.background = null
+        binding.tabSignUp.setTextColor(resources.getColor(R.color.text_muted, null))
+        binding.tabSignUp.background = null
+
+        if (prefillEmail.isNotBlank()) {
+            binding.etForgotEmail.setText(prefillEmail)
+        }
+
+        binding.formSignIn.visibility = View.GONE
+        binding.formSignUpStep1.visibility = View.GONE
+        binding.formSignUpStep2.visibility = View.GONE
+        binding.formForgotPasswordStep1.visibility = View.VISIBLE
+        binding.formForgotPasswordStep2.visibility = View.GONE
+    }
+
+    private fun showForgotPasswordStep2(email: String) {
+        hideError()
+        binding.tvForgotOtpInstruction.text = "Reset code sent to $email.\nEnter it below along with your new password:"
+        binding.formSignIn.visibility = View.GONE
+        binding.formSignUpStep1.visibility = View.GONE
+        binding.formSignUpStep2.visibility = View.GONE
+        binding.formForgotPasswordStep1.visibility = View.GONE
+        binding.formForgotPasswordStep2.visibility = View.VISIBLE
     }
 
     private fun setLoading(loading: Boolean) {
@@ -225,6 +324,8 @@ class AuthActivity : AppCompatActivity() {
         binding.btnSubmitSignIn.isEnabled = !loading
         binding.btnSendOtp.isEnabled = !loading
         binding.btnVerifyAndRegister.isEnabled = !loading
+        binding.btnSendForgotOtp.isEnabled = !loading
+        binding.btnSubmitResetPassword.isEnabled = !loading
         if (loading) hideError()
     }
 

@@ -338,6 +338,177 @@ def get_user_progress(user_id: str, current_date: str) -> dict:
     }
 
 
+def reset_password_with_otp(email_addr: str, otp_code: str, new_password: str) -> bool:
+    """Verifies OTP and resets the user's password."""
+    init_db()
+    clean_email = email_addr.strip().lower()
+
+    # 1. Verify user exists
+    user = get_user_by_email(clean_email)
+    if not user:
+        return False
+
+    # 2. Verify OTP for forgot_password
+    if not verify_otp(clean_email, otp_code, "forgot_password"):
+        return False
+
+    # 3. Hash new password and update
+    pwd_hash, salt = hash_password(new_password)
+    with get_connection() as conn:
+        conn.execute("UPDATE users SET password_hash = ?, salt = ? WHERE email = ?", (pwd_hash, salt, clean_email))
+        conn.commit()
+
+    return True
+
+
+# --- Admin Portal Queries ---
+
+def get_admin_stats() -> dict:
+    """Consolidated KPI metrics for Kurrent Admin Command Center."""
+    init_db()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # Briefings count
+        cursor.execute("SELECT COUNT(*) as count FROM briefings")
+        total_briefings = cursor.fetchone()["count"]
+
+        # Latest briefing info
+        cursor.execute("SELECT date, edition, created_at, payload_json FROM briefings ORDER BY date DESC LIMIT 1")
+        latest_row = cursor.fetchone()
+        latest_briefing = None
+        if latest_row:
+            try:
+                p = json.loads(latest_row["payload_json"])
+                latest_briefing = {
+                    "date": latest_row["date"],
+                    "edition": latest_row["edition"],
+                    "created_at": latest_row["created_at"],
+                    "articles_count": len(p.get("articles", [])),
+                    "quizzes_count": len(p.get("quizzes", []))
+                }
+            except Exception:
+                latest_briefing = {"date": latest_row["date"], "edition": latest_row["edition"]}
+
+        # Users count
+        cursor.execute("SELECT COUNT(*) as count FROM users")
+        total_users = cursor.fetchone()["count"]
+
+        # Total articles read
+        cursor.execute("SELECT COUNT(*) as count FROM user_progress WHERE is_read = 1")
+        total_reads = cursor.fetchone()["count"]
+
+        # Total bookmarks
+        cursor.execute("SELECT COUNT(*) as count FROM user_progress WHERE is_bookmarked = 1")
+        total_bookmarks = cursor.fetchone()["count"]
+
+        # Highest streak
+        cursor.execute("SELECT MAX(longest_streak) as max_streak, MAX(current_streak) as max_cur FROM user_streaks")
+        streak_row = cursor.fetchone()
+        max_streak = streak_row["max_streak"] if streak_row and streak_row["max_streak"] else 0
+        max_cur = streak_row["max_cur"] if streak_row and streak_row["max_cur"] else 0
+
+        # Target exam distribution
+        cursor.execute("SELECT target_exam, COUNT(*) as count FROM users GROUP BY target_exam")
+        exam_distribution = {row["target_exam"]: row["count"] for row in cursor.fetchall()}
+
+        # Database file size
+        db_size_kb = 0
+        if os.path.exists(DB_FILE):
+            db_size_kb = round(os.path.getsize(DB_FILE) / 1024, 1)
+
+    return {
+        "total_briefings": total_briefings,
+        "latest_briefing": latest_briefing,
+        "total_users": total_users,
+        "total_reads": total_reads,
+        "total_bookmarks": total_bookmarks,
+        "max_streak": max(max_streak, max_cur),
+        "exam_distribution": exam_distribution,
+        "db_size_kb": db_size_kb,
+        "db_path": DB_FILE
+    }
+
+
+def get_admin_briefings(limit: int = 50) -> list:
+    """Returns summarized list of briefings for Admin dashboard table."""
+    init_db()
+    briefings = []
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT date, edition, created_at, payload_json FROM briefings ORDER BY date DESC LIMIT ?", (limit,))
+        for row in cursor.fetchall():
+            art_count = 0
+            quiz_count = 0
+            flashcard_count = 0
+            topics = []
+            try:
+                p = json.loads(row["payload_json"])
+                articles = p.get("articles", [])
+                art_count = len(articles)
+                quiz_count = len(p.get("quizzes", []))
+                flashcard_count = len(p.get("flashcards", []))
+                topics = list({t for a in articles for t in a.get("topics", [])})[:4]
+            except Exception:
+                pass
+
+            briefings.append({
+                "date": row["date"],
+                "edition": row["edition"],
+                "created_at": row["created_at"],
+                "article_count": art_count,
+                "quiz_count": quiz_count,
+                "flashcard_count": flashcard_count,
+                "topics": topics
+            })
+    return briefings
+
+
+def get_admin_users(limit: int = 100) -> list:
+    """Returns list of student users with their reading streaks and stats."""
+    init_db()
+    users = []
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT u.id, u.email, u.display_name, u.target_exam, u.created_at,
+                   COALESCE(s.current_streak, 0) as current_streak,
+                   COALESCE(s.longest_streak, 0) as longest_streak,
+                   COALESCE(s.total_articles_read, 0) as total_articles_read,
+                   s.last_active_date
+            FROM users u
+            LEFT JOIN user_streaks s ON u.id = s.user_id
+            ORDER BY u.created_at DESC
+            LIMIT ?
+        """, (limit,))
+        for row in cursor.fetchall():
+            users.append(dict(row))
+    return users
+
+
+def delete_briefing(date_str: str) -> bool:
+    """Deletes a daily briefing by date."""
+    init_db()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM briefings WHERE date = ?", (date_str,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def delete_user(user_id: str) -> bool:
+    """Removes a user and their progress history."""
+    init_db()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        cursor.execute("DELETE FROM user_progress WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM user_streaks WHERE user_id = ?", (user_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
 if __name__ == "__main__":
     init_db()
     print(f"Database initialized at {DB_FILE}")
+

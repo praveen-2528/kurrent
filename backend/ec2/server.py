@@ -29,14 +29,22 @@ from database import (
     verify_password,
     sync_user_progress,
     get_user_progress,
+    reset_password_with_otp,
 )
 from ingest import fetch_and_ingest
+import admin_portal
 
 app = FastAPI(
     title="Kurrent Daily Current Affairs API",
     description="High-performance backend for UPSC, SSC, and IBPS current affairs.",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url="/api/docs",
+    redoc_url=None
 )
+
+# Mount the interactive Admin Portal at /admin, /docs, and /
+app.include_router(admin_portal.router)
+
 
 # Enable CORS for all clients
 app.add_middleware(
@@ -154,6 +162,12 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class ResetPasswordRequest(BaseModel):
+    email: str
+    otp: str
+    new_password: str
+
+
 class SyncProgressRequest(BaseModel):
     current_date: str
     read_article_ids: List[str] = []
@@ -213,6 +227,10 @@ def api_send_otp(req: SendOtpRequest):
         existing = get_user_by_email(clean_email)
         if existing:
             raise HTTPException(status_code=400, detail="An account with this email already exists. Please log in.")
+    elif req.purpose == "forgot_password":
+        existing = get_user_by_email(clean_email)
+        if not existing:
+            raise HTTPException(status_code=404, detail="No registered account found with this email.")
 
     # 6-digit OTP
     otp_code = f"{secrets.randbelow(900000) + 100000}"
@@ -272,6 +290,38 @@ def api_login(req: LoginRequest):
     return {
         "status": "success",
         "message": "Logged in successfully!",
+        "token": token,
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "display_name": user["display_name"],
+            "target_exam": user["target_exam"]
+        }
+    }
+
+
+@app.post("/auth/forgot-password/reset")
+def api_reset_password(req: ResetPasswordRequest):
+    """
+    Verifies the OTP code for forgot_password and updates the user's password.
+    Returns a fresh session token for immediate sign-in.
+    """
+    clean_email = req.email.strip().lower()
+    if len(req.new_password.strip()) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters.")
+
+    user = get_user_by_email(clean_email)
+    if not user:
+        raise HTTPException(status_code=404, detail="No registered account found with this email.")
+
+    success = reset_password_with_otp(clean_email, req.otp.strip(), req.new_password.strip())
+    if not success:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code. Please request a new code.")
+
+    token = create_token(user["id"], user["email"])
+    return {
+        "status": "success",
+        "message": "Password reset successfully! Welcome back.",
         "token": token,
         "user": {
             "id": user["id"],

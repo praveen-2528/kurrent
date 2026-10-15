@@ -92,6 +92,12 @@ data class LoginRequest(
     @SerializedName("password") val password: String
 )
 
+data class ResetPasswordRequest(
+    @SerializedName("email") val email: String,
+    @SerializedName("otp") val otp: String,
+    @SerializedName("new_password") val newPassword: String
+)
+
 data class AuthResponse(
     @SerializedName("status") val status: String = "",
     @SerializedName("message") val message: String = "",

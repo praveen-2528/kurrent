@@ -6,6 +6,7 @@ import com.example.kurrent.model.DailyBriefing
 import com.example.kurrent.model.LoginRequest
 import com.example.kurrent.model.ProfileResponse
 import com.example.kurrent.model.RegisterWithOtpRequest
+import com.example.kurrent.model.ResetPasswordRequest
 import com.example.kurrent.model.SendOtpRequest
 import com.example.kurrent.model.SendOtpResponse
 import com.example.kurrent.model.SyncProgressRequest
@@ -162,6 +163,34 @@ object ApiClient {
                 Result.failure(e)
             }
         }
+
+    suspend fun resetPassword(
+        email: String,
+        otp: String,
+        newPassword: String,
+        baseUrl: String = DEFAULT_BASE_URL
+    ): Result<AuthResponse> = withContext(Dispatchers.IO) {
+        val url = "$baseUrl/auth/forgot-password/reset"
+        val json = gson.toJson(ResetPasswordRequest(email, otp, newPassword))
+        val request = Request.Builder()
+            .url(url)
+            .post(json.toRequestBody(JSON_MEDIA))
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                val body = response.body?.string().orEmpty()
+                if (response.isSuccessful) {
+                    val parsed = gson.fromJson(body, AuthResponse::class.java)
+                    Result.success(parsed)
+                } else {
+                    Result.failure(Exception(body.ifBlank { "Password reset failed." }))
+                }
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     suspend fun syncProgress(req: SyncProgressRequest, token: String, baseUrl: String = DEFAULT_BASE_URL): Result<SyncProgressResponse> =
         withContext(Dispatchers.IO) {
