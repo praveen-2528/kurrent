@@ -1,0 +1,450 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/surface_dark"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:id="@+id/layoutAuthContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="36dp"
+        android:paddingBottom="40dp"
+        android:gravity="center_horizontal">
+
+        <!-- Logo / App Branding Header -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+
+            <ImageView
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:src="@drawable/ic_fire"
+                app:tint="@color/accent_gold"
+                android:contentDescription="Kurrent Logo" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="KURRENT"
+                android:textColor="@color/white"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Syllabus-Aligned Current Affairs"
+            android:textColor="@color/teal_accent"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.05" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="UPSC Civil Services • SSC CGL • IBPS &amp; Banking"
+            android:textColor="@color/text_muted"
+            android:textSize="12sp" />
+
+        <!-- Mandatory Login Notice Banner -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/bg_search_box"
+            android:padding="12dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_person"
+                app:tint="@color/indigo_light"
+                android:contentDescription="Account mandatory" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp"
+                android:text="Authentication is required to access daily briefings, streak tracking, and cloud bookmarks."
+                android:textColor="@color/indigo_light"
+                android:textSize="11.5sp"
+                android:lineSpacingExtra="2dp" />
+        </LinearLayout>
+
+        <!-- Main Card Container -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="4dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="#334155"
+            app:cardBackgroundColor="@color/card_dark">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <!-- Tab Switcher: Sign In vs Create Account -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_search_box"
+                    android:padding="3dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tabSignIn"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="Sign In"
+                        android:textColor="@color/white"
+                        android:textStyle="bold"
+                        android:textSize="13.5sp"
+                        android:background="@drawable/bg_date_chip" />
+
+                    <TextView
+                        android:id="@+id/tabSignUp"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="Create Account"
+                        android:textColor="@color/text_muted"
+                        android:textStyle="bold"
+                        android:textSize="13.5sp" />
+                </LinearLayout>
+
+                <!-- Error Notice Box -->
+                <TextView
+                    android:id="@+id/tvAuthError"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:background="#2E1015"
+                    android:padding="10dp"
+                    android:text="Error notice"
+                    android:textColor="#FCA5A5"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+
+                <!-- Loading Spinner -->
+                <ProgressBar
+                    android:id="@+id/pbAuthLoading"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:layout_marginTop="16dp"
+                    android:indeterminateTint="@color/teal_accent"
+                    android:visibility="gone" />
+
+                <!-- FORM 1: Sign In -->
+                <LinearLayout
+                    android:id="@+id/formSignIn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:orientation="vertical"
+                    android:visibility="visible">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Email Address"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etLoginEmail"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_search_box"
+                        android:hint="aspirant@example.com"
+                        android:inputType="textEmailAddress"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:textColor="@color/white"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="13.5sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="Password"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etLoginPassword"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_search_box"
+                        android:hint="••••••••"
+                        android:inputType="textPassword"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:textColor="@color/white"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="13.5sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSubmitSignIn"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:layout_marginTop="20dp"
+                        android:text="Sign In"
+                        android:textAllCaps="false"
+                        android:textSize="14.5sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="10dp"
+                        app:backgroundTint="@color/teal_accent"
+                        android:textColor="@color/surface_dark" />
+                </LinearLayout>
+
+                <!-- FORM 2: Sign Up Step 1 (Enter Details & Request OTP) -->
+                <LinearLayout
+                    android:id="@+id/formSignUpStep1"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Full Name"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etSignUpName"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_search_box"
+                        android:hint="e.g. Priya Sharma"
+                        android:inputType="textPersonName"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:textColor="@color/white"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="13.5sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="Email Address (for OTP Verification)"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etSignUpEmail"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_search_box"
+                        android:hint="priya@example.com"
+                        android:inputType="textEmailAddress"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:textColor="@color/white"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="13.5sp" />
+
+                    <!-- Target Exam Choice -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:text="Target Competitive Exam:"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <com.google.android.material.chip.ChipGroup
+                        android:id="@+id/chipGroupSignUpExams"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        app:singleSelection="true">
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipSignUpAll"
+                            style="@style/Widget.Material3.Chip.Filter"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="true"
+                            android:text="All Exams"
+                            android:textColor="@color/white"
+                            app:chipBackgroundColor="@drawable/bg_date_chip" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipSignUpUpsc"
+                            style="@style/Widget.Material3.Chip.Filter"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="UPSC"
+                            android:textColor="@color/white"
+                            app:chipBackgroundColor="@drawable/bg_date_chip" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipSignUpSsc"
+                            style="@style/Widget.Material3.Chip.Filter"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="SSC"
+                            android:textColor="@color/white"
+                            app:chipBackgroundColor="@drawable/bg_date_chip" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipSignUpIbps"
+                            style="@style/Widget.Material3.Chip.Filter"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="IBPS"
+                            android:textColor="@color/white"
+                            app:chipBackgroundColor="@drawable/bg_date_chip" />
+                    </com.google.android.material.chip.ChipGroup>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSendOtp"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:layout_marginTop="18dp"
+                        android:text="Send 6-Digit Verification Code"
+                        android:textAllCaps="false"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="10dp"
+                        app:backgroundTint="@color/indigo_primary"
+                        android:textColor="@color/white" />
+                </LinearLayout>
+
+                <!-- FORM 3: Sign Up Step 2 (Enter OTP & Set Password) -->
+                <LinearLayout
+                    android:id="@+id/formSignUpStep2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/tvOtpInstruction"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Verification code sent to your email. Enter it below to activate your account:"
+                        android:textColor="@color/teal_accent"
+                        android:textSize="12.5sp"
+                        android:lineSpacingExtra="2dp" />
+
+                    <EditText
+                        android:id="@+id/etOtpCode"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/bg_search_box"
+                        android:hint="6-Digit OTP"
+                        android:inputType="number"
+                        android:maxLength="6"
+                        android:gravity="center"
+                        android:letterSpacing="0.4"
+                        android:textColor="@color/white"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="19sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:text="Create Password (min 6 characters)"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etSignUpPassword"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_search_box"
+                        android:hint="Choose password"
+                        android:inputType="textPassword"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:textColor="@color/white"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="13.5sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnVerifyAndRegister"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:layout_marginTop="18dp"
+                        android:text="Verify OTP &amp; Create Account"
+                        android:textAllCaps="false"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="10dp"
+                        app:backgroundTint="@color/teal_accent"
+                        android:textColor="@color/surface_dark" />
+
+                    <TextView
+                        android:id="@+id/btnBackToStep1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginTop="14dp"
+                        android:text="← Edit email address / resend code"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp"
+                        android:padding="6dp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Footer -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Kurrent App • Continuous Revision &amp; Exam Readiness"
+            android:textColor="@color/text_muted"
+            android:textSize="11sp" />
+
+    </LinearLayout>
+</ScrollView>

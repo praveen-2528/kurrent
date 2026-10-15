@@ -248,8 +248,11 @@ class AccountBottomSheetDialog(
         binding.btnLogout.setOnClickListener {
             AuthManager.clearSession()
             Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
-            onAuthChanged(false)
-            refreshViewState()
+            dismiss()
+            val intent = android.content.Intent(requireContext(), AuthActivity::class.java)
+            intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            activity?.finish()
         }
     }
 

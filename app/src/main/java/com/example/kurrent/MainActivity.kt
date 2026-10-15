@@ -62,6 +62,15 @@ class MainActivity : AppCompatActivity() {
         SampleDataRepository.init(this)
         com.example.kurrent.data.AuthManager.init(this)
 
+        // Mandatory Auth Check: Block access unless signed in
+        if (!com.example.kurrent.data.AuthManager.isLoggedIn()) {
+            val intent = android.content.Intent(this, com.example.kurrent.ui.AuthActivity::class.java)
+            intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            finish()
+            return
+        }
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -598,6 +607,18 @@ class MainActivity : AppCompatActivity() {
             binding.layoutSavedEmpty.visibility = View.GONE
             articleAdapter.updateArticles(bookmarked)
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!com.example.kurrent.data.AuthManager.isLoggedIn()) {
+            val intent = android.content.Intent(this, com.example.kurrent.ui.AuthActivity::class.java)
+            intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            finish()
+            return
+        }
+        updateProfileHeader()
     }
 
     override fun onDestroy() {
