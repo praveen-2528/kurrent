@@ -18,8 +18,16 @@ import com.example.kurrent.model.Article
 
 class ArticleAdapter(
     private var articles: List<Article>,
-    private val onBookmarkClicked: (Article) -> Unit
+    private val onBookmarkClicked: (Article) -> Unit,
+    private val onListenClicked: ((Article) -> Unit)? = null
 ) : RecyclerView.Adapter<ArticleAdapter.ArticleViewHolder>() {
+
+    private var currentlySpeakingArticleId: String? = null
+
+    fun setCurrentlySpeaking(articleId: String?) {
+        this.currentlySpeakingArticleId = articleId
+        notifyDataSetChanged()
+    }
 
     fun updateArticles(newArticles: List<Article>) {
         this.articles = newArticles
@@ -200,6 +208,19 @@ class ArticleAdapter(
                     )
                 }
                 context.startActivity(Intent.createChooser(shareIntent, "Share Current Affair"))
+            }
+
+            // 12. Listen to News Audio Action
+            val isPlayingThis = (currentlySpeakingArticleId == article.id)
+            if (isPlayingThis) {
+                binding.tvListenText.text = "Playing..."
+                binding.ivListenIcon.setImageResource(R.drawable.ic_pause)
+            } else {
+                binding.tvListenText.text = "Listen"
+                binding.ivListenIcon.setImageResource(R.drawable.ic_audio_speaker)
+            }
+            binding.btnListenNews.setOnClickListener {
+                onListenClicked?.invoke(article)
             }
 
             // 12. Official Source Link

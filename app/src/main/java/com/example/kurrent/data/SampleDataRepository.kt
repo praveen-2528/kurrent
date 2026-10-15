@@ -1,5 +1,7 @@
 package com.example.kurrent.data
 
+import android.content.Context
+import android.util.Log
 import com.example.kurrent.data.network.ApiClient
 import com.example.kurrent.model.Article
 import com.example.kurrent.model.DailyBriefing
@@ -7,10 +9,63 @@ import com.example.kurrent.model.FactItem
 import com.example.kurrent.model.QuizQuestion
 import com.example.kurrent.model.RecallItem
 import com.example.kurrent.model.UpscData
+import com.google.gson.Gson
+import java.io.File
 
 object SampleDataRepository {
 
+    private const val TAG = "SampleDataRepository"
+    private val gson = Gson()
+    private var cacheDir: File? = null
+
     private var activeBriefing: DailyBriefing = createDefaultBriefing()
+    private var todayBriefing: DailyBriefing = activeBriefing
+
+    /**
+     * Initializes the offline cache directory and loads the most recently cached briefing if available.
+     */
+    fun init(context: Context) {
+        try {
+            val dir = File(context.filesDir, "briefing_cache")
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
+            cacheDir = dir
+
+            val cachedToday = loadFromDisk("today")
+            if (cachedToday != null && cachedToday.articles.isNotEmpty()) {
+                activeBriefing = cachedToday
+                todayBriefing = cachedToday
+                Log.d(TAG, "Restored cached briefing for date: ${cachedToday.date} (${cachedToday.articles.size} articles)")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing cache: ${e.message}", e)
+        }
+    }
+
+    private fun saveToDisk(key: String, briefing: DailyBriefing) {
+        val dir = cacheDir ?: return
+        try {
+            val file = File(dir, "briefing_$key.json")
+            file.writeText(gson.toJson(briefing))
+            Log.d(TAG, "Cached briefing to disk: ${file.name}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to cache briefing $key: ${e.message}", e)
+        }
+    }
+
+    private fun loadFromDisk(key: String): DailyBriefing? {
+        val dir = cacheDir ?: return null
+        try {
+            val file = File(dir, "briefing_$key.json")
+            if (file.exists() && file.length() > 0) {
+                return gson.fromJson(file.readText(), DailyBriefing::class.java)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load cached briefing $key: ${e.message}", e)
+        }
+        return null
+    }
 
     private fun createDefaultBriefing(): DailyBriefing {
         return DailyBriefing(
@@ -175,33 +230,42 @@ object SampleDataRepository {
         )
     }
 
-    private var todayBriefing: DailyBriefing = activeBriefing
-
     fun getDailyBriefing(): DailyBriefing = activeBriefing
 
     /**
      * Attempts to fetch live briefing from the EC2 backend.
-     * If successful, updates activeBriefing and triggers callback.
+     * If successful, updates activeBriefing, persists to offline disk cache, and triggers callback.
      */
     suspend fun syncWithBackend(onSuccess: (DailyBriefing) -> Unit) {
         val liveBriefing = ApiClient.getTodayBriefing()
         if (liveBriefing != null && liveBriefing.articles.isNotEmpty()) {
             activeBriefing = liveBriefing
             todayBriefing = liveBriefing
+            saveToDisk("today", liveBriefing)
+            saveToDisk(liveBriefing.date, liveBriefing)
             onSuccess(liveBriefing)
         }
     }
 
     /**
      * Fetches briefing for a specific date from EC2.
-     * If found, sets activeBriefing and returns the briefing.
-     * If not found or empty, returns null.
+     * If found, saves to cache and returns the briefing.
+     * If network fails or is offline, checks local disk cache before returning null.
      */
     suspend fun fetchBriefingForDate(date: String): DailyBriefing? {
-        val briefing = ApiClient.getBriefingByDate(date)
-        if (briefing != null && briefing.articles.isNotEmpty()) {
-            activeBriefing = briefing
-            return briefing
+        val cached = loadFromDisk(date)
+
+        val liveBriefing = ApiClient.getBriefingByDate(date)
+        if (liveBriefing != null && liveBriefing.articles.isNotEmpty()) {
+            activeBriefing = liveBriefing
+            saveToDisk(date, liveBriefing)
+            return liveBriefing
+        }
+
+        // Offline / network failure fallback
+        if (cached != null && cached.articles.isNotEmpty()) {
+            activeBriefing = cached
+            return cached
         }
         return null
     }
@@ -212,6 +276,33 @@ object SampleDataRepository {
     fun restoreTodayBriefing(): DailyBriefing {
         activeBriefing = todayBriefing
         return activeBriefing
+    }
+
+    /**
+     * Searches articles within the current active briefing across title, category,
+     * headline facts, background, takeaways, mnemonics, static GK, and syllabus mappings.
+     */
+    fun searchArticles(query: String, examFilter: String = "ALL"): List<Article> {
+        val baseArticles = getArticlesByFilter(examFilter)
+        val q = query.trim().lowercase()
+        if (q.isBlank()) return baseArticles
+
+        return baseArticles.filter { article ->
+            article.title.lowercase().contains(q) ||
+            article.category.lowercase().contains(q) ||
+            article.headlineFact.lowercase().contains(q) ||
+            article.background.lowercase().contains(q) ||
+            article.longTermImpact.lowercase().contains(q) ||
+            article.revisionLine.lowercase().contains(q) ||
+            article.mnemonic.lowercase().contains(q) ||
+            article.keyFactsFigures.any { it.key.lowercase().contains(q) || it.value.lowercase().contains(q) } ||
+            article.staticGkLinkage.any { it.key.lowercase().contains(q) || it.value.lowercase().contains(q) } ||
+            article.relatedStaticRevision.any { it.key.lowercase().contains(q) || it.value.lowercase().contains(q) } ||
+            article.upscData?.gsPaper?.lowercase()?.contains(q) == true ||
+            article.upscData?.prelimsFacts?.any { it.lowercase().contains(q) } == true ||
+            article.upscData?.mainsAnalysis?.lowercase()?.contains(q) == true ||
+            article.sscIbpsFacts.any { it.key.lowercase().contains(q) || it.value.lowercase().contains(q) }
+        }
     }
 
     fun getArticlesByFilter(examFilter: String): List<Article> {

@@ -2,10 +2,13 @@ package com.example.kurrent
 
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import androidx.core.widget.addTextChangedListener
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.viewpager2.widget.ViewPager2
@@ -13,6 +16,7 @@ import com.example.kurrent.adapter.ArticleAdapter
 import com.example.kurrent.adapter.QuickCardAdapter
 import com.example.kurrent.adapter.QuizAdapter
 import com.example.kurrent.adapter.RecallAdapter
+import com.example.kurrent.audio.AudioNewsManager
 import com.example.kurrent.data.SampleDataRepository
 import com.example.kurrent.databinding.ActivityMainBinding
 import com.example.kurrent.ui.CardStackPageTransformer
@@ -32,7 +36,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var quizAdapter: QuizAdapter
     private lateinit var recallAdapter: RecallAdapter
 
+    // Audio News Engine for Hands-Free Digest
+    private lateinit var audioNewsManager: AudioNewsManager
+
     private var currentExamFilter: String = "ALL"
+    private var currentSearchQuery: String = ""
     private var currentTabId: Int = R.id.nav_digest
 
     // Track cards read by the user today for the circular progress ring
@@ -50,10 +58,16 @@ class MainActivity : AppCompatActivity() {
             android.util.Log.e("KurrentCrash", "FATAL CRASH on thread ${thread.name}: ${throwable.message}", throwable)
         }
 
+        // Initialize local disk cache for instant offline access
+        SampleDataRepository.init(this)
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         setupWindowInsets()
+        setupAudioNewsManager()
+        setupSwipeRefresh()
+        setupSearch()
         setupHeader()
         setupAdapters()
         setupExamFilters()
@@ -77,8 +91,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Prevents the top bar from going under the notification panel/status bar
-     * and ensures the bottom bar accounts for system navigation bars.
+     * Prevents the top bar from going under the notification panel/status bar,
+     * ensures the bottom bar accounts for system navigation bars, and adjusts the
+     * floating mini audio player to remain cleanly positioned above the bottom nav.
      */
     private fun setupWindowInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.appBarLayout) { view, windowInsets ->
@@ -90,6 +105,12 @@ class MainActivity : AppCompatActivity() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.bottomNav) { view, windowInsets ->
             val navBarInset = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars())
             view.updatePadding(bottom = navBarInset.bottom)
+
+            // Adjust floating mini audio player to remain above bottomNav
+            val miniParams = binding.layoutMiniAudioPlayer.layoutParams as? ViewGroup.MarginLayoutParams
+            miniParams?.bottomMargin = (80 * resources.displayMetrics.density).toInt() + navBarInset.bottom
+            binding.layoutMiniAudioPlayer.layoutParams = miniParams
+
             windowInsets
         }
     }
@@ -177,8 +198,10 @@ class MainActivity : AppCompatActivity() {
         binding.tvNilTitle.text = "No Briefing on $dateStr"
         binding.tvNilMessage.text = "There is no current affairs content published for this date (nil)."
         binding.layoutDateNil.visibility = View.VISIBLE
+        binding.layoutSearchAndAudio.visibility = View.GONE
         binding.filterScrollView.visibility = View.GONE
-        binding.rvArticles.visibility = View.GONE
+        binding.swipeRefresh.visibility = View.GONE
+        binding.layoutSearchEmpty.visibility = View.GONE
         binding.vpQuickCards.visibility = View.GONE
         binding.rvRecalls.visibility = View.GONE
         binding.rvQuiz.visibility = View.GONE
@@ -190,6 +213,7 @@ class MainActivity : AppCompatActivity() {
         isDateNil = false
         selectedDate = null
         binding.layoutDateNil.visibility = View.GONE
+        binding.layoutSearchAndAudio.visibility = View.VISIBLE
         SampleDataRepository.restoreTodayBriefing()
         readCardIndices.clear()
         setupHeader()
@@ -197,14 +221,121 @@ class MainActivity : AppCompatActivity() {
         showCurrentTab()
     }
 
-    private fun setupAdapters() {
-        // 1. Digest Feed Adapter
-        articleAdapter = ArticleAdapter(emptyList()) { article ->
-            SampleDataRepository.toggleBookmark(article.id)
-            if (currentTabId == R.id.nav_saved) {
-                refreshSavedTab()
+    private fun setupAudioNewsManager() {
+        audioNewsManager = AudioNewsManager(this)
+
+        // Track updates when moving through news items
+        audioNewsManager.onTrackChangedListener = { article, currentTrack, totalTracks ->
+            runOnUiThread {
+                binding.tvPlayerTitle.text = article.title
+                binding.tvPlayerSubtitle.text = "Track $currentTrack of $totalTracks • ${article.category}"
+                articleAdapter.setCurrentlySpeaking(article.id)
             }
         }
+
+        // Playback state updates
+        audioNewsManager.onPlaybackStateChanged = { isPlaying ->
+            runOnUiThread {
+                if (isPlaying) {
+                    binding.layoutMiniAudioPlayer.visibility = View.VISIBLE
+                    binding.btnPlayerPlayPause.setImageResource(R.drawable.ic_pause)
+                    binding.tvAudioDigestText.text = "Playing"
+                    binding.ivAudioDigestIcon.setImageResource(R.drawable.ic_pause)
+                } else {
+                    binding.layoutMiniAudioPlayer.visibility = View.GONE
+                    binding.tvAudioDigestText.text = "Listen"
+                    binding.ivAudioDigestIcon.setImageResource(R.drawable.ic_headphones)
+                    articleAdapter.setCurrentlySpeaking(null)
+                }
+            }
+        }
+
+        // Top bar "Listen" button -> Read full daily digest
+        binding.btnAudioDigest.setOnClickListener {
+            if (audioNewsManager.isSpeaking()) {
+                audioNewsManager.stop()
+            } else {
+                val articlesToPlay = SampleDataRepository.searchArticles(currentSearchQuery, currentExamFilter)
+                if (articlesToPlay.isNotEmpty()) {
+                    audioNewsManager.playAll(articlesToPlay)
+                } else {
+                    Toast.makeText(this, "No articles to play", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        // Mini player controls
+        binding.btnPlayerPlayPause.setOnClickListener {
+            if (audioNewsManager.isSpeaking()) {
+                audioNewsManager.stop()
+            } else {
+                val articlesToPlay = SampleDataRepository.searchArticles(currentSearchQuery, currentExamFilter)
+                if (articlesToPlay.isNotEmpty()) {
+                    audioNewsManager.playAll(articlesToPlay)
+                }
+            }
+        }
+
+        binding.btnPlayerClose.setOnClickListener {
+            audioNewsManager.stop()
+            binding.layoutMiniAudioPlayer.visibility = View.GONE
+        }
+    }
+
+    private fun setupSwipeRefresh() {
+        binding.swipeRefresh.setColorSchemeResources(R.color.indigo_primary, R.color.teal_accent)
+        binding.swipeRefresh.setOnRefreshListener {
+            lifecycleScope.launch {
+                try {
+                    var isUpdated = false
+                    SampleDataRepository.syncWithBackend {
+                        isUpdated = true
+                    }
+                    setupHeader()
+                    loadData()
+                    if (isUpdated) {
+                        Toast.makeText(this@MainActivity, "Daily briefing refreshed!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@MainActivity, "Briefing is up to date (offline cache)", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(this@MainActivity, "Offline - Showing cached briefing", Toast.LENGTH_SHORT).show()
+                } finally {
+                    binding.swipeRefresh.isRefreshing = false
+                }
+            }
+        }
+    }
+
+    private fun setupSearch() {
+        binding.etSearch.addTextChangedListener { text ->
+            currentSearchQuery = text?.toString()?.trim() ?: ""
+            binding.btnClearSearch.visibility = if (currentSearchQuery.isNotBlank()) View.VISIBLE else View.GONE
+            applyCurrentFilter()
+        }
+
+        binding.btnClearSearch.setOnClickListener {
+            binding.etSearch.text?.clear()
+            currentSearchQuery = ""
+            binding.btnClearSearch.visibility = View.GONE
+            applyCurrentFilter()
+        }
+    }
+
+    private fun setupAdapters() {
+        // 1. Digest Feed Adapter with Bookmark & Audio Listen Handlers
+        articleAdapter = ArticleAdapter(
+            articles = emptyList(),
+            onBookmarkClicked = { article ->
+                SampleDataRepository.toggleBookmark(article.id)
+                if (currentTabId == R.id.nav_saved) {
+                    refreshSavedTab()
+                }
+            },
+            onListenClicked = { article ->
+                audioNewsManager.togglePlayArticle(article)
+            }
+        )
         binding.rvArticles.apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
             adapter = articleAdapter
@@ -288,8 +419,10 @@ class MainActivity : AppCompatActivity() {
     private fun showCurrentTab() {
         if (isDateNil) {
             binding.layoutDateNil.visibility = View.VISIBLE
+            binding.layoutSearchAndAudio.visibility = View.GONE
             binding.filterScrollView.visibility = View.GONE
-            binding.rvArticles.visibility = View.GONE
+            binding.swipeRefresh.visibility = View.GONE
+            binding.layoutSearchEmpty.visibility = View.GONE
             binding.vpQuickCards.visibility = View.GONE
             binding.rvRecalls.visibility = View.GONE
             binding.rvQuiz.visibility = View.GONE
@@ -298,6 +431,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.layoutDateNil.visibility = View.GONE
+        binding.swipeRefresh.isEnabled = (currentTabId == R.id.nav_digest)
         when (currentTabId) {
             R.id.nav_digest -> showDigestTab()
             R.id.nav_cards -> showCardsTab()
@@ -315,16 +449,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyCurrentFilter() {
-        val filtered = SampleDataRepository.getArticlesByFilter(currentExamFilter)
+        val filtered = SampleDataRepository.searchArticles(currentSearchQuery, currentExamFilter)
         articleAdapter.updateArticles(filtered)
         quickCardAdapter.updateArticles(filtered)
         val total = filtered.size
         updateProgressRing(readCardIndices.size, total)
+
+        // Empty search state feedback
+        if (filtered.isEmpty() && currentSearchQuery.isNotBlank() && currentTabId == R.id.nav_digest) {
+            binding.layoutSearchEmpty.visibility = View.VISIBLE
+            binding.swipeRefresh.visibility = View.GONE
+            binding.tvSearchEmptyMessage.text = "No articles matching \"$currentSearchQuery\". Try searching by entity or topic."
+        } else {
+            binding.layoutSearchEmpty.visibility = View.GONE
+            if (currentTabId == R.id.nav_digest && !isDateNil) {
+                binding.swipeRefresh.visibility = View.VISIBLE
+            }
+        }
     }
 
     private fun showDigestTab() {
+        binding.layoutSearchAndAudio.visibility = View.VISIBLE
         binding.filterScrollView.visibility = View.VISIBLE
-        binding.rvArticles.visibility = View.VISIBLE
+        binding.swipeRefresh.visibility = View.VISIBLE
         binding.vpQuickCards.visibility = View.GONE
         binding.rvRecalls.visibility = View.GONE
         binding.rvQuiz.visibility = View.GONE
@@ -333,8 +480,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showCardsTab() {
+        binding.layoutSearchAndAudio.visibility = View.VISIBLE
         binding.filterScrollView.visibility = View.VISIBLE
-        binding.rvArticles.visibility = View.GONE
+        binding.swipeRefresh.visibility = View.GONE
+        binding.layoutSearchEmpty.visibility = View.GONE
         binding.vpQuickCards.visibility = View.VISIBLE
         binding.rvRecalls.visibility = View.GONE
         binding.rvQuiz.visibility = View.GONE
@@ -343,8 +492,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showRecallsTab() {
+        binding.layoutSearchAndAudio.visibility = View.GONE
         binding.filterScrollView.visibility = View.GONE
-        binding.rvArticles.visibility = View.GONE
+        binding.swipeRefresh.visibility = View.GONE
+        binding.layoutSearchEmpty.visibility = View.GONE
         binding.vpQuickCards.visibility = View.GONE
         binding.rvRecalls.visibility = View.VISIBLE
         binding.rvQuiz.visibility = View.GONE
@@ -353,8 +504,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showQuizTab() {
+        binding.layoutSearchAndAudio.visibility = View.GONE
         binding.filterScrollView.visibility = View.GONE
-        binding.rvArticles.visibility = View.GONE
+        binding.swipeRefresh.visibility = View.GONE
+        binding.layoutSearchEmpty.visibility = View.GONE
         binding.vpQuickCards.visibility = View.GONE
         binding.rvRecalls.visibility = View.GONE
         binding.rvQuiz.visibility = View.VISIBLE
@@ -362,10 +515,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSavedTab() {
+        binding.layoutSearchAndAudio.visibility = View.GONE
         binding.filterScrollView.visibility = View.GONE
         binding.vpQuickCards.visibility = View.GONE
         binding.rvRecalls.visibility = View.GONE
         binding.rvQuiz.visibility = View.GONE
+        binding.layoutSearchEmpty.visibility = View.GONE
         refreshSavedTab()
     }
 
@@ -373,12 +528,17 @@ class MainActivity : AppCompatActivity() {
         val allArticles = SampleDataRepository.getDailyBriefing().articles
         val bookmarked = allArticles.filter { it.isBookmarked }
         if (bookmarked.isEmpty()) {
-            binding.rvArticles.visibility = View.GONE
+            binding.swipeRefresh.visibility = View.GONE
             binding.layoutSavedEmpty.visibility = View.VISIBLE
         } else {
-            binding.rvArticles.visibility = View.VISIBLE
+            binding.swipeRefresh.visibility = View.VISIBLE
             binding.layoutSavedEmpty.visibility = View.GONE
             articleAdapter.updateArticles(bookmarked)
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        audioNewsManager.release()
     }
 }
