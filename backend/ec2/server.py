@@ -69,11 +69,12 @@ def get_briefing_for_date(date: str):
 @app.post("/ingest/trigger")
 def trigger_ingestion():
     """
-    Manual trigger endpoint to fetch and parse the latest email on-demand.
+    Manual trigger endpoint to fetch and parse emails on-demand.
+    Checks for unread emails first, and falls back to latest seen email if forced manually.
     """
-    success = fetch_and_ingest()
+    success = fetch_and_ingest(force_check_seen=True)
     if success:
-        return {"status": "success", "message": "Successfully ingested latest email."}
+        return {"status": "success", "message": "Successfully ingested briefing(s)."}
     else:
         return {"status": "warning", "message": "Ingestion completed, but no new briefing was saved."}
 

@@ -1,8 +1,8 @@
 """
 Kurrent EC2 Email Ingestion Script
 Can be run manually anytime: python ingest.py
-Or automated via Linux crontab at 5:15 AM:
-15 5 * * * /usr/bin/python3 /home/ubuntu/kurrent/backend/ec2/ingest.py >> /home/ubuntu/kurrent/ingest.log 2>&1
+Or automated via Linux crontab every hour:
+0 * * * * /usr/bin/python3 /home/ec2-user/kurrent/backend/ec2/ingest.py >> /home/ec2-user/kurrent/backend/ec2/ingest.log 2>&1
 """
 
 import os
@@ -48,12 +48,19 @@ _load_env_file()
 # Credentials (read from environment or .env file)
 IMAP_SERVER = os.environ.get("IMAP_SERVER", "imap.gmail.com").strip()
 EMAIL_ACCOUNT = os.environ.get("EMAIL_ACCOUNT", "your-email@gmail.com").strip()
-# Remove spaces if Google App Password was copied with spaces (e.g. "xxxx xxxx xxxx xxxx" -> "xxxxxxxxxxxxxxxx")
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD", "your-16-char-app-password").replace(" ", "").strip()
 
 
-def fetch_and_ingest():
-    print(f"[{datetime.now().isoformat()}] Starting email fetch from account: {EMAIL_ACCOUNT}...")
+def fetch_and_ingest(force_check_seen: bool = False):
+    """
+    Fetches unread emails with [KURRENT-DAILY] in the subject.
+    - Automated hourly cron runs with force_check_seen=False: only processes UNSEEN emails.
+      Once ingested, marks them as \\Seen so they will NEVER be re-read or re-saved.
+    - If force_check_seen=True (e.g. manual trigger from Swagger UI), checks the latest email
+      even if already marked seen.
+    - SQLite database uses 'date PRIMARY KEY', completely eliminating duplicate rows.
+    """
+    print(f"[{datetime.now().isoformat()}] Starting email fetch for {EMAIL_ACCOUNT} (force_check_seen={force_check_seen})...")
 
     init_db()
 
@@ -62,20 +69,31 @@ def fetch_and_ingest():
         mail.login(EMAIL_ACCOUNT, EMAIL_APP_PASSWORD)
         mail.select("inbox")
 
-        # 1. Search for unread briefing emails first
+        # 1. Search for unread briefing emails only
         status, messages = mail.search(None, '(UNSEEN SUBJECT "[KURRENT-DAILY]")')
+        email_ids = messages[0].split() if (status == "OK" and messages[0]) else []
 
-        if status != "OK" or not messages[0]:
-            print("No unread email found. Checking latest email with [KURRENT-DAILY] in subject...")
-            status, messages = mail.search(None, '(SUBJECT "[KURRENT-DAILY]")')
+        if not email_ids:
+            if force_check_seen:
+                print("No unread email found. force_check_seen=True, checking latest seen email...")
+                status, messages = mail.search(None, '(SUBJECT "[KURRENT-DAILY]")')
+                all_ids = messages[0].split() if (status == "OK" and messages[0]) else []
+                if all_ids:
+                    email_ids = [all_ids[-1]]
+            else:
+                print("[IDLE] No new unread [KURRENT-DAILY] emails. Inbox is clean. Skipping redundant ingestion.")
+                mail.logout()
+                return True
 
-        is_unseen_batch = (status == "OK" and bool(messages[0]))
-        targets = email_ids if is_unseen_batch else [email_ids[-1]]
+        if not email_ids:
+            print("No Kurrent briefing email found in inbox.")
+            mail.logout()
+            return False
 
-        print(f"Found {len(targets)} email(s) to process (unseen batch: {is_unseen_batch}).")
+        print(f"Found {len(email_ids)} email(s) to process.")
         ingested_count = 0
 
-        for email_id in targets:
+        for email_id in email_ids:
             try:
                 res, msg_data = mail.fetch(email_id, "(RFC822)")
                 if not msg_data or not msg_data[0]:
@@ -102,14 +120,17 @@ def fetch_and_ingest():
 
                 # 3. Parse with Kurrent Parser
                 parsed = parse_markdown_email(body)
-                print(f"Successfully parsed briefing for date: {parsed['date']} (Edition #{parsed['edition']})")
+                date_key = parsed.get("date")
+                edition_num = parsed.get("edition", 1)
+
+                print(f"Successfully parsed briefing for date: {date_key} (Edition #{edition_num})")
                 print(f"Stats: {len(parsed['articles'])} articles, {len(parsed['recalls'])} recalls, {len(parsed['quizzes'])} quizzes.")
 
-                # 4. Save to SQLite database under its extracted DATE tag
-                save_briefing(parsed["date"], parsed["edition"], parsed)
-                print(f"Saved briefing for date '{parsed['date']}' to SQLite database!")
+                # 4. Save to SQLite database (PRIMARY KEY on date prevents duplicate rows)
+                save_briefing(date_key, edition_num, parsed)
+                print(f"Saved briefing for date '{date_key}' to database.")
 
-                # Mark as read
+                # 5. Mark as read in Gmail/IMAP so it will NOT be re-read on subsequent hourly runs
                 mail.store(email_id, "+FLAGS", "\\Seen")
                 ingested_count += 1
             except Exception as item_err:
@@ -125,4 +146,5 @@ def fetch_and_ingest():
 
 
 if __name__ == "__main__":
-    fetch_and_ingest()
+    force_flag = "--force" in sys.argv
+    fetch_and_ingest(force_check_seen=force_flag)
