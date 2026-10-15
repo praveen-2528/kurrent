@@ -3,7 +3,7 @@
     <string name="tagline">Daily Current Affairs for UPSC, SSC &amp; IBPS</string>
     
     <!-- Tabs / Navigation -->
-    <string name="tab_digest">Daily Digest</string>
+    <string name="tab_digest">Digest</string>
     <string name="tab_quick_cards">Cards</string>
     <string name="tab_recalls">Recalls</string>
     <string name="tab_mcq_quiz">Quiz</string>

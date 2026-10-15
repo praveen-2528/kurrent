@@ -175,6 +175,8 @@ object SampleDataRepository {
         )
     }
 
+    private var todayBriefing: DailyBriefing = activeBriefing
+
     fun getDailyBriefing(): DailyBriefing = activeBriefing
 
     /**
@@ -185,8 +187,31 @@ object SampleDataRepository {
         val liveBriefing = ApiClient.getTodayBriefing()
         if (liveBriefing != null && liveBriefing.articles.isNotEmpty()) {
             activeBriefing = liveBriefing
+            todayBriefing = liveBriefing
             onSuccess(liveBriefing)
         }
+    }
+
+    /**
+     * Fetches briefing for a specific date from EC2.
+     * If found, sets activeBriefing and returns the briefing.
+     * If not found or empty, returns null.
+     */
+    suspend fun fetchBriefingForDate(date: String): DailyBriefing? {
+        val briefing = ApiClient.getBriefingByDate(date)
+        if (briefing != null && briefing.articles.isNotEmpty()) {
+            activeBriefing = briefing
+            return briefing
+        }
+        return null
+    }
+
+    /**
+     * Restores the active briefing back to today's briefing.
+     */
+    fun restoreTodayBriefing(): DailyBriefing {
+        activeBriefing = todayBriefing
+        return activeBriefing
     }
 
     fun getArticlesByFilter(examFilter: String): List<Article> {

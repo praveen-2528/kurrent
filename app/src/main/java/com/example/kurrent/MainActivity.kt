@@ -3,6 +3,10 @@ package com.example.kurrent
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.viewpager2.widget.ViewPager2
 import com.example.kurrent.adapter.ArticleAdapter
@@ -12,8 +16,12 @@ import com.example.kurrent.adapter.RecallAdapter
 import com.example.kurrent.data.SampleDataRepository
 import com.example.kurrent.databinding.ActivityMainBinding
 import com.example.kurrent.ui.CardStackPageTransformer
-import androidx.lifecycle.lifecycleScope
+import com.google.android.material.datepicker.MaterialDatePicker
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+import java.util.TimeZone
 
 class MainActivity : AppCompatActivity() {
 
@@ -30,6 +38,10 @@ class MainActivity : AppCompatActivity() {
     // Track cards read by the user today for the circular progress ring
     private val readCardIndices = mutableSetOf<Int>()
 
+    // Selected date tracking and nil state
+    private var selectedDate: String? = null
+    private var isDateNil: Boolean = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -41,18 +53,22 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        setupWindowInsets()
         setupHeader()
         setupAdapters()
         setupExamFilters()
         setupBottomNavigation()
+        setupCalendarActions()
         loadData()
 
         // Sync with live EC2 backend asynchronously in background
         lifecycleScope.launch {
             try {
                 SampleDataRepository.syncWithBackend { liveBriefing ->
-                    setupHeader()
-                    loadData()
+                    if (!isDateNil && selectedDate == null) {
+                        setupHeader()
+                        loadData()
+                    }
                 }
             } catch (e: Exception) {
                 android.util.Log.e("KurrentMain", "Error updating UI after sync: ${e.message}", e)
@@ -60,11 +76,125 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Prevents the top bar from going under the notification panel/status bar
+     * and ensures the bottom bar accounts for system navigation bars.
+     */
+    private fun setupWindowInsets() {
+        ViewCompat.setOnApplyWindowInsetsListener(binding.appBarLayout) { view, windowInsets ->
+            val statusBarInset = windowInsets.getInsets(WindowInsetsCompat.Type.statusBars())
+            view.updatePadding(top = statusBarInset.top)
+            windowInsets
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.bottomNav) { view, windowInsets ->
+            val navBarInset = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            view.updatePadding(bottom = navBarInset.bottom)
+            windowInsets
+        }
+    }
+
     private fun setupHeader() {
         val briefing = SampleDataRepository.getDailyBriefing()
-        binding.tvHeaderDate.text = "TODAY, ${briefing.date} • EDITION #${briefing.edition}"
+        val dateLabel = if (selectedDate == null || selectedDate == briefing.date) {
+            "TODAY, ${briefing.date} • #${briefing.edition}"
+        } else {
+            "${briefing.date} • #${briefing.edition}"
+        }
+        binding.tvHeaderDate.text = dateLabel
         binding.tvStreak.text = "7 Days"
-        updateProgressRing(0, briefing.articles.size)
+        updateProgressRing(readCardIndices.size, briefing.articles.size)
+    }
+
+    private fun setupCalendarActions() {
+        // Tap on interactive date chip opens the Material DatePicker
+        binding.btnSelectDate.setOnClickListener {
+            showDatePicker()
+        }
+
+        // Return to today from nil empty state
+        binding.btnNilReturnToday.setOnClickListener {
+            restoreTodayBriefing()
+        }
+
+        // Pick another date from nil empty state
+        binding.btnNilPickDate.setOnClickListener {
+            showDatePicker()
+        }
+    }
+
+    private fun showDatePicker() {
+        val datePicker = MaterialDatePicker.Builder.datePicker()
+            .setTitleText("Select Briefing Date")
+            .setSelection(MaterialDatePicker.todayInUtcMilliseconds())
+            .build()
+
+        datePicker.addOnPositiveButtonClickListener { selectionMillis ->
+            val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                timeInMillis = selectionMillis
+            }
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+            val dateStr = sdf.format(calendar.time)
+            loadBriefingForDate(dateStr)
+        }
+
+        datePicker.show(supportFragmentManager, "BRIEFING_DATE_PICKER")
+    }
+
+    private fun loadBriefingForDate(dateStr: String) {
+        binding.layoutDateLoading.visibility = View.VISIBLE
+        binding.tvLoadingMessage.text = "Loading briefing for $dateStr..."
+        selectedDate = dateStr
+
+        lifecycleScope.launch {
+            try {
+                val briefing = SampleDataRepository.fetchBriefingForDate(dateStr)
+                binding.layoutDateLoading.visibility = View.GONE
+                if (briefing != null && briefing.articles.isNotEmpty()) {
+                    isDateNil = false
+                    binding.layoutDateNil.visibility = View.GONE
+                    readCardIndices.clear()
+                    setupHeader()
+                    loadData()
+                    showCurrentTab()
+                } else {
+                    // Nil state: No briefing on this date
+                    isDateNil = true
+                    showDateNilState(dateStr)
+                }
+            } catch (e: Exception) {
+                binding.layoutDateLoading.visibility = View.GONE
+                isDateNil = true
+                showDateNilState(dateStr)
+            }
+        }
+    }
+
+    private fun showDateNilState(dateStr: String) {
+        binding.tvHeaderDate.text = "$dateStr • Nil"
+        binding.tvNilTitle.text = "No Briefing on $dateStr"
+        binding.tvNilMessage.text = "There is no current affairs content published for this date (nil)."
+        binding.layoutDateNil.visibility = View.VISIBLE
+        binding.filterScrollView.visibility = View.GONE
+        binding.rvArticles.visibility = View.GONE
+        binding.vpQuickCards.visibility = View.GONE
+        binding.rvRecalls.visibility = View.GONE
+        binding.rvQuiz.visibility = View.GONE
+        binding.layoutSavedEmpty.visibility = View.GONE
+        updateProgressRing(0, 0)
+    }
+
+    private fun restoreTodayBriefing() {
+        isDateNil = false
+        selectedDate = null
+        binding.layoutDateNil.visibility = View.GONE
+        SampleDataRepository.restoreTodayBriefing()
+        readCardIndices.clear()
+        setupHeader()
+        loadData()
+        showCurrentTab()
     }
 
     private fun setupAdapters() {
@@ -87,9 +217,7 @@ class MainActivity : AppCompatActivity() {
         }
         binding.vpQuickCards.apply {
             adapter = quickCardAdapter
-            // Attach tactile spring-physics card stack transformer
             setPageTransformer(CardStackPageTransformer())
-            // Listen to page swipes to update the daily reading progress ring
             registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
                 override fun onPageSelected(position: Int) {
                     super.onPageSelected(position)
@@ -116,12 +244,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateProgressRing(readCount: Int, totalCount: Int) {
-        if (totalCount == 0) return
+        if (totalCount == 0) {
+            binding.progressDailyRing.setProgressCompat(0, false)
+            binding.tvDailyProgress.text = "0/0 Read"
+            return
+        }
         val percent = ((readCount.toFloat() / totalCount.toFloat()) * 100).toInt().coerceIn(0, 100)
         binding.progressDailyRing.setProgressCompat(percent, true)
         binding.tvDailyProgress.text = "$readCount/$totalCount Read"
 
-        // When 100% read is reached, trigger subtle micro-celebration on the streak flame without interrupting modal
         if (percent == 100) {
             binding.ivStreakFlame.animate()
                 .scaleX(1.35f)
@@ -147,32 +278,32 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupBottomNavigation() {
-        // Fast, near-instant switches (<100ms) with zero heavy transition lag
         binding.bottomNav.setOnItemSelectedListener { item ->
             currentTabId = item.itemId
-            when (item.itemId) {
-                R.id.nav_digest -> {
-                    showDigestTab()
-                    true
-                }
-                R.id.nav_cards -> {
-                    showCardsTab()
-                    true
-                }
-                R.id.nav_recalls -> {
-                    showRecallsTab()
-                    true
-                }
-                R.id.nav_quiz -> {
-                    showQuizTab()
-                    true
-                }
-                R.id.nav_saved -> {
-                    showSavedTab()
-                    true
-                }
-                else -> false
-            }
+            showCurrentTab()
+            true
+        }
+    }
+
+    private fun showCurrentTab() {
+        if (isDateNil) {
+            binding.layoutDateNil.visibility = View.VISIBLE
+            binding.filterScrollView.visibility = View.GONE
+            binding.rvArticles.visibility = View.GONE
+            binding.vpQuickCards.visibility = View.GONE
+            binding.rvRecalls.visibility = View.GONE
+            binding.rvQuiz.visibility = View.GONE
+            binding.layoutSavedEmpty.visibility = View.GONE
+            return
+        }
+
+        binding.layoutDateNil.visibility = View.GONE
+        when (currentTabId) {
+            R.id.nav_digest -> showDigestTab()
+            R.id.nav_cards -> showCardsTab()
+            R.id.nav_recalls -> showRecallsTab()
+            R.id.nav_quiz -> showQuizTab()
+            R.id.nav_saved -> showSavedTab()
         }
     }
 
